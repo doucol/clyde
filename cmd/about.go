@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	date     = "n/a"
-	revision = "dev"
-	version  = "dev"
+	date     = "nil"
+	revision = "nil"
+	version  = "nil"
 )
 
 var aboutCmd = &cobra.Command{
