@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/doucol/clyde/cmd/watch"
-	"github.com/doucol/clyde/internal"
+	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/util/homedir"
 )
@@ -45,13 +46,10 @@ func init() {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() int {
-	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		cmdContext, err := internal.NewCmdContext(kubeConfig, kubeContext)
-		if err != nil {
-			return err
-		}
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		fmt.Println("rootCmd.PersistentPreRun")
+		cmdContext := cmdContext.NewCmdContext(kubeConfig, kubeContext)
 		cmd.SetContext(cmdContext.ToContext(cmd.Context()))
-		return nil
 	}
 	if err := rootCmd.Execute(); err != nil {
 		return -1
