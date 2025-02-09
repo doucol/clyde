@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -47,7 +46,6 @@ func init() {
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() int {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		fmt.Println("rootCmd.PersistentPreRun")
 		cmdContext := cmdContext.NewCmdContext(kubeConfig, kubeContext)
 		cmd.SetContext(cmdContext.ToContext(cmd.Context()))
 	}

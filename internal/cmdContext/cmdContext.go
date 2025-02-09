@@ -3,7 +3,7 @@ package cmdContext
 import (
 	"context"
 
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -15,16 +15,16 @@ const cmdContextKey cmdContextKeyType = "CmdContextKey"
 type CmdContext struct {
 	KubeConfig  string
 	KubeContext string
-	clientset   *kubernetes.Clientset
+	dc          *dynamic.DynamicClient
 }
 
 func (c *CmdContext) ToContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, cmdContextKey, c)
 }
 
-func (c *CmdContext) Clientset() *kubernetes.Clientset {
-	if c.clientset != nil {
-		return c.clientset
+func (c *CmdContext) Client() *dynamic.DynamicClient {
+	if c.dc != nil {
+		return c.dc
 	}
 
 	var configOverrides *clientcmd.ConfigOverrides
@@ -37,23 +37,22 @@ func (c *CmdContext) Clientset() *kubernetes.Clientset {
 		panic(err)
 	}
 
-	// create the clientset
-	cs, err := kubernetes.NewForConfig(config)
+	dc, err := dynamic.NewForConfig(config)
 	if err != nil {
 		panic(err)
 	}
-	c.clientset = cs
-	return c.clientset
+	c.dc = dc
+	return c.dc
 }
 
 func CmdContextFromContext(ctx context.Context) *CmdContext {
 	return ctx.Value(cmdContextKey).(*CmdContext)
 }
 
-func ClientsetFromContext(ctx context.Context) *kubernetes.Clientset {
-	return CmdContextFromContext(ctx).Clientset()
+func ClientFromContext(ctx context.Context) *dynamic.DynamicClient {
+	return CmdContextFromContext(ctx).Client()
 }
 
 func NewCmdContext(kubeConfig, kubeContext string) *CmdContext {
-	return &CmdContext{KubeConfig: kubeConfig, KubeContext: kubeContext, clientset: nil}
+	return &CmdContext{KubeConfig: kubeConfig, KubeContext: kubeContext, dc: nil}
 }

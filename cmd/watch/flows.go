@@ -2,6 +2,7 @@ package watch
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
@@ -15,6 +16,9 @@ func (d *PodTableData) GetCell(row, column int) *tview.TableCell {
 	cellData := "foo"
 	if row%2 == 0 {
 		cellData = "bar"
+	}
+	if column == 0 {
+		cellData = "row-" + strconv.Itoa(row)
 	}
 	return tview.NewTableCell(cellData)
 }
@@ -36,11 +40,9 @@ var WatchFlowsCmd = &cobra.Command{
 	Short: "Watch calico flows",
 	Long:  `Watch live calico flows in near real-time`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		data := newPodTableData()
-		table := tview.NewTable().SetBorders(false).SetSelectable(true, false).SetContent(data)
-		if err := tview.NewApplication().SetRoot(table, true).EnableMouse(true).Run(); err != nil {
-			return err
-		}
+		// data := newPodTableData()
+		// table := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(data)
+		// return tview.NewApplication().SetRoot(table, true).EnableMouse(true).Run()
 		return nil
 	},
 }
