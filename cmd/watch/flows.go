@@ -40,10 +40,9 @@ var WatchFlowsCmd = &cobra.Command{
 	Short: "Watch calico flows",
 	Long:  `Watch live calico flows in near real-time`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// data := newPodTableData()
-		// table := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(data)
-		// return tview.NewApplication().SetRoot(table, true).EnableMouse(true).Run()
-		return nil
+		data := newPodTableData()
+		table := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(data)
+		return tview.NewApplication().SetRoot(table, true).EnableMouse(true).Run()
 	},
 }
 

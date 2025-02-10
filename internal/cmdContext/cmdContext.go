@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -16,13 +17,14 @@ type CmdContext struct {
 	KubeConfig  string
 	KubeContext string
 	dc          *dynamic.DynamicClient
+	cs          *kubernetes.Clientset
 }
 
 func (c *CmdContext) ToContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, cmdContextKey, c)
 }
 
-func (c *CmdContext) Client() *dynamic.DynamicClient {
+func (c *CmdContext) ClientDyn() *dynamic.DynamicClient {
 	if c.dc != nil {
 		return c.dc
 	}
@@ -45,12 +47,35 @@ func (c *CmdContext) Client() *dynamic.DynamicClient {
 	return c.dc
 }
 
+func (c *CmdContext) Clientset() *kubernetes.Clientset {
+	if c.cs != nil {
+		return c.cs
+	}
+
+	var configOverrides *clientcmd.ConfigOverrides
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: c.KubeConfig}
+	if c.KubeContext != "" {
+		configOverrides = &clientcmd.ConfigOverrides{CurrentContext: c.KubeContext}
+	}
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, configOverrides).ClientConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	cs, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	c.cs = cs
+	return c.cs
+}
+
 func CmdContextFromContext(ctx context.Context) *CmdContext {
 	return ctx.Value(cmdContextKey).(*CmdContext)
 }
 
 func ClientFromContext(ctx context.Context) *dynamic.DynamicClient {
-	return CmdContextFromContext(ctx).Client()
+	return CmdContextFromContext(ctx).ClientDyn()
 }
 
 func NewCmdContext(kubeConfig, kubeContext string) *CmdContext {
