@@ -14,8 +14,8 @@ type cmdContextKeyType string
 const cmdContextKey cmdContextKeyType = "CmdContextKey"
 
 type CmdContext struct {
-	KubeConfig  string
-	KubeContext string
+	kubeConfig  string
+	kubeContext string
 	dc          *dynamic.DynamicClient
 	cs          *kubernetes.Clientset
 }
@@ -30,9 +30,9 @@ func (c *CmdContext) ClientDyn() *dynamic.DynamicClient {
 	}
 
 	var configOverrides *clientcmd.ConfigOverrides
-	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: c.KubeConfig}
-	if c.KubeContext != "" {
-		configOverrides = &clientcmd.ConfigOverrides{CurrentContext: c.KubeContext}
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: c.kubeConfig}
+	if c.kubeContext != "" {
+		configOverrides = &clientcmd.ConfigOverrides{CurrentContext: c.kubeContext}
 	}
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, configOverrides).ClientConfig()
 	if err != nil {
@@ -53,9 +53,9 @@ func (c *CmdContext) Clientset() *kubernetes.Clientset {
 	}
 
 	var configOverrides *clientcmd.ConfigOverrides
-	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: c.KubeConfig}
-	if c.KubeContext != "" {
-		configOverrides = &clientcmd.ConfigOverrides{CurrentContext: c.KubeContext}
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: c.kubeConfig}
+	if c.kubeContext != "" {
+		configOverrides = &clientcmd.ConfigOverrides{CurrentContext: c.kubeContext}
 	}
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, configOverrides).ClientConfig()
 	if err != nil {
@@ -79,5 +79,5 @@ func ClientFromContext(ctx context.Context) *dynamic.DynamicClient {
 }
 
 func NewCmdContext(kubeConfig, kubeContext string) *CmdContext {
-	return &CmdContext{KubeConfig: kubeConfig, KubeContext: kubeContext, dc: nil}
+	return &CmdContext{kubeConfig: kubeConfig, kubeContext: kubeContext, dc: nil}
 }
