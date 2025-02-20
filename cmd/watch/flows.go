@@ -1,38 +1,52 @@
 package watch
 
 import (
-	"math"
-	"strconv"
+	"bufio"
+	"fmt"
+	"net/http"
+	"strings"
 
-	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
 )
 
-type PodTableData struct {
-	tview.TableContentReadOnly
-}
-
-func (d *PodTableData) GetCell(row, column int) *tview.TableCell {
-	cellData := "foo"
-	if row%2 == 0 {
-		cellData = "bar"
+// ConsumeSSEStream connects to an SSE endpoint and processes events.
+func ConsumeSSEStream(url string) error {
+	// Create an HTTP GET request
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to SSE stream: %w", err)
 	}
-	if column == 0 {
-		cellData = "row-" + strconv.Itoa(row)
+	defer resp.Body.Close()
+
+	// Check for a valid response
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-	return tview.NewTableCell(cellData)
-}
 
-func (d *PodTableData) GetRowCount() int {
-	return math.MaxInt64
-}
+	// Read the SSE stream line by line
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
 
-func (d *PodTableData) GetColumnCount() int {
-	return math.MaxInt64
-}
+		// Skip comments or empty lines
+		if strings.HasPrefix(line, ":") || len(strings.TrimSpace(line)) == 0 {
+			continue
+		}
 
-func newPodTableData() *PodTableData {
-	return &PodTableData{}
+		// Parse the event data
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+			fmt.Printf("Received event data: %s\n", data)
+		}
+	}
+
+	// Handle any errors during scanning
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading SSE stream: %w", err)
+	}
+
+	return nil
 }
 
 var WatchFlowsCmd = &cobra.Command{
@@ -40,9 +54,11 @@ var WatchFlowsCmd = &cobra.Command{
 	Short: "Watch calico flows",
 	Long:  `Watch live calico flows in near real-time`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		data := newPodTableData()
-		table := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(data)
-		return tview.NewApplication().SetRoot(table, true).EnableMouse(true).Run()
+		sseURL := "http://localhost:3002/flows/_stream"
+		if err := ConsumeSSEStream(sseURL); err != nil {
+			return fmt.Errorf("error consuming SSE stream: %w", err)
+		}
+		return nil
 	},
 }
 

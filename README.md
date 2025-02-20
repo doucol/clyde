@@ -1,2 +1,3 @@
 # clyde
-k8s observability utility
+
+k8s & calico observability tools
