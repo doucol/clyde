@@ -18,7 +18,7 @@ import (
 type dynFil struct{}
 
 func (d *dynFil) Export(ctx context.Context) error {
-	client := cmdContext.ClientFromContext(ctx)
+	client := cmdContext.ClientDynFromContext(ctx)
 	resource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, time.Minute, corev1.NamespaceAll, nil)
 	informer := factory.ForResource(resource).Informer()

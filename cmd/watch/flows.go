@@ -4,9 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 
+	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/spf13/cobra"
+
+	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
 )
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
@@ -54,10 +60,52 @@ var WatchFlowsCmd = &cobra.Command{
 	Short: "Watch calico flows",
 	Long:  `Watch live calico flows in near real-time`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		config := cmdContext.K8sConfigFromContext(cmd.Context())
+
+		// URL for the portforward endpoint on the pod
+		podName := "whisker-6cc9f5cd7c-r6gwg"
+		podNamespace := "calico-system"
+		apiURL, _ := url.Parse(fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", config.Host, podNamespace, podName))
+
+		// Dialer for establishing the connection
+		transport, upgrader, err := spdy.RoundTripperFor(config)
+		if err != nil {
+			return err
+		}
+		dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, apiURL)
+
+		// Port mappings (local port: pod port)
+		ports := []string{"3002:3002"}
+
+		// Channels for signaling
+		stopChan := make(chan struct{}, 1)
+		readyChan := make(chan struct{})
+
+		// Create the port forwarder
+		forwarder, err := portforward.New(dialer, ports, stopChan, readyChan, os.Stdout, os.Stderr)
+		if err != nil {
+			return err
+		}
+
+		// Start the port forwarding
+		go func() {
+			if err := forwarder.ForwardPorts(); err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		// Wait for the port forwarding to be ready
+		<-readyChan
+		// fmt.Println("Port forwarding is ready")
+
 		sseURL := "http://localhost:3002/flows/_stream"
 		if err := ConsumeSSEStream(sseURL); err != nil {
 			return fmt.Errorf("error consuming SSE stream: %w", err)
 		}
+
+		// Keep the program running until interrupted
+		<-stopChan
+
 		return nil
 	},
 }
