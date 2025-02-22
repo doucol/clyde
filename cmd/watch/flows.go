@@ -2,10 +2,13 @@ package watch
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/doucol/clyde/internal/cmdContext"
@@ -13,7 +16,36 @@ import (
 
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
+
+func getWhisker(ctx context.Context, clientset *kubernetes.Clientset) (string, int, error) {
+	pods, err := clientset.CoreV1().Pods("calico-system").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Iterate through the pods and inspect their names and environment variables
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			if container.Name == "whisker-backend" {
+				for _, env := range container.Env {
+					if env.Name == "PORT" {
+						port, err := strconv.Atoi(env.Value)
+						if err != nil {
+							return "", 0, err
+						}
+						return pod.Name, port, nil
+					}
+				}
+			}
+		}
+	}
+
+	return "", 0, fmt.Errorf("whisker pod or port not found")
+}
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
 func ConsumeSSEStream(url string) error {
@@ -55,6 +87,18 @@ func ConsumeSSEStream(url string) error {
 	return nil
 }
 
+func getFreePort() (port int, err error) {
+	var a *net.TCPAddr
+	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", a); err == nil {
+			defer l.Close()
+			return l.Addr().(*net.TCPAddr).Port, nil
+		}
+	}
+	return
+}
+
 var WatchFlowsCmd = &cobra.Command{
 	Use:   "flows",
 	Short: "Watch calico flows",
@@ -63,9 +107,12 @@ var WatchFlowsCmd = &cobra.Command{
 		config := cmdContext.K8sConfigFromContext(cmd.Context())
 
 		// URL for the portforward endpoint on the pod
-		podName := "whisker-6cc9f5cd7c-r6gwg"
-		podNamespace := "calico-system"
-		apiURL, _ := url.Parse(fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", config.Host, podNamespace, podName))
+		podName, port, err := getWhisker(cmd.Context(), cmdContext.ClientsetFromContext(cmd.Context()))
+		if err != nil {
+			return err
+		}
+
+		apiURL, _ := url.Parse(fmt.Sprintf("%s/api/v1/namespaces/calico-system/pods/%s/portforward", config.Host, podName))
 
 		// Dialer for establishing the connection
 		transport, upgrader, err := spdy.RoundTripperFor(config)
@@ -75,7 +122,11 @@ var WatchFlowsCmd = &cobra.Command{
 		dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, apiURL)
 
 		// Port mappings (local port: pod port)
-		ports := []string{"3002:3002"}
+		freePort, err := getFreePort()
+		if err != nil {
+			return err
+		}
+		ports := []string{fmt.Sprintf("%d:%d", freePort, port)}
 
 		// Channels for signaling
 		stopChan := make(chan struct{}, 1)
@@ -98,7 +149,7 @@ var WatchFlowsCmd = &cobra.Command{
 		<-readyChan
 		// fmt.Println("Port forwarding is ready")
 
-		sseURL := "http://localhost:3002/flows/_stream"
+		sseURL := fmt.Sprintf("http://localhost:%d/flows/_stream", freePort)
 		if err := ConsumeSSEStream(sseURL); err != nil {
 			return fmt.Errorf("error consuming SSE stream: %w", err)
 		}
