@@ -34,7 +34,7 @@ func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace string, con
 }
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
-func ConsumeSSEStream(url string) error {
+func ConsumeSSEStream(url string, cb func(data string)) error {
 	// Create an HTTP GET request
 	resp, err := http.Get(url)
 	if err != nil {
@@ -61,7 +61,7 @@ func ConsumeSSEStream(url string) error {
 		if strings.HasPrefix(line, "data:") {
 			data := strings.TrimPrefix(line, "data:")
 			data = strings.TrimSpace(data)
-			fmt.Printf("Received event data: %s\n", data)
+			cb(data)
 		}
 	}
 
