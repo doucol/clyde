@@ -2,10 +2,12 @@ package whisker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/alphadose/haxmap"
 	"github.com/doucol/clyde/internal/cmdContext"
@@ -15,6 +17,25 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
+type FlowResponse struct {
+	StartTime       time.Time `json:"start_time"`
+	EndTime         time.Time `json:"end_time"`
+	Action          string    `json:"action"`
+	SourceName      string    `json:"source_name"`
+	SourceNamespace string    `json:"source_namespace"`
+	SourceLabels    string    `json:"source_labels"`
+	DestName        string    `json:"dest_name"`
+	DestNamespace   string    `json:"dest_namespace"`
+	DestLabels      string    `json:"dest_labels"`
+	Protocol        string    `json:"protocol"`
+	DestPort        int64     `json:"dest_port"`
+	Reporter        string    `json:"reporter"`
+	PacketsIn       int64     `json:"packets_in"`
+	PacketsOut      int64     `json:"packets_out"`
+	BytesIn         int64     `json:"bytes_in"`
+	BytesOut        int64     `json:"bytes_out"`
+}
+
 const (
 	CalicoNamespace             = "calico-system"
 	WhiskerBackendContainerName = "whisker-backend"
@@ -22,7 +43,7 @@ const (
 
 var (
 	app   = tview.NewApplication()
-	flows = haxmap.New[int, string]()
+	flows = haxmap.New[int, FlowResponse]()
 )
 
 type flowTable struct {
@@ -34,7 +55,7 @@ func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
 		return tview.NewTableCell(fmt.Sprintf("%d", row))
 	}
 	if val, ok := flows.Get(row); ok {
-		return tview.NewTableCell(val)
+		return tview.NewTableCell(fmt.Sprintf("%s|%s|%s|%s|%s", val.Action, val.SourceNamespace, val.SourceName, val.DestNamespace, val.DestName))
 	}
 	panic("invalid cell")
 }
@@ -56,7 +77,7 @@ func WatchFlows(ctx context.Context) error {
 	flex := tview.NewFlex()
 	flex.SetBorder(true).SetTitle("Calico Flows")
 	table := tview.NewTable().SetBorders(false).SetSelectable(true, false).SetContent(&flowTable{})
-	flex.AddItem(table, 0, 1, false)
+	flex.AddItem(table, 0, 1, true)
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		return err
 	}
@@ -65,7 +86,11 @@ func WatchFlows(ctx context.Context) error {
 
 func flowCatcher(data string) {
 	// fmt.Printf("Received event data: %s\n", data)
-	flows.Set(int(flows.Len()), data)
+	var fr FlowResponse
+	if err := json.Unmarshal([]byte(data), &fr); err != nil {
+		panic(err)
+	}
+	flows.Set(int(flows.Len()), fr)
 	app.Draw()
 }
 
@@ -117,7 +142,7 @@ func streamFlows(ctx context.Context) error {
 	<-readyChan
 	// fmt.Println("Port forwarding is ready")
 
-	sseURL := fmt.Sprintf("http://localhost:%d/flows/_stream", freePort)
+	sseURL := fmt.Sprintf("http://localhost:%d/flows?watch=true", freePort)
 	if err := util.ConsumeSSEStream(sseURL, flowCatcher); err != nil {
 		return fmt.Errorf("error consuming SSE stream: %w", err)
 	}
