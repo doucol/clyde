@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/alphadose/haxmap"
 	"github.com/doucol/clyde/internal/cmdContext"
@@ -16,25 +15,6 @@ import (
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
-
-type FlowResponse struct {
-	StartTime       time.Time `json:"start_time"`
-	EndTime         time.Time `json:"end_time"`
-	Action          string    `json:"action"`
-	SourceName      string    `json:"source_name"`
-	SourceNamespace string    `json:"source_namespace"`
-	SourceLabels    string    `json:"source_labels"`
-	DestName        string    `json:"dest_name"`
-	DestNamespace   string    `json:"dest_namespace"`
-	DestLabels      string    `json:"dest_labels"`
-	Protocol        string    `json:"protocol"`
-	DestPort        int64     `json:"dest_port"`
-	Reporter        string    `json:"reporter"`
-	PacketsIn       int64     `json:"packets_in"`
-	PacketsOut      int64     `json:"packets_out"`
-	BytesIn         int64     `json:"bytes_in"`
-	BytesOut        int64     `json:"bytes_out"`
-}
 
 const (
 	CalicoNamespace             = "calico-system"
@@ -45,28 +25,6 @@ var (
 	app   = tview.NewApplication()
 	flows = haxmap.New[int, FlowResponse]()
 )
-
-type flowTable struct {
-	tview.TableContentReadOnly
-}
-
-func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
-	if column == 0 {
-		return tview.NewTableCell(fmt.Sprintf("%d", row))
-	}
-	if val, ok := flows.Get(row); ok {
-		return tview.NewTableCell(fmt.Sprintf("%s|%s|%s|%s|%s", val.Action, val.SourceNamespace, val.SourceName, val.DestNamespace, val.DestName))
-	}
-	panic("invalid cell")
-}
-
-func (ft *flowTable) GetRowCount() int {
-	return int(flows.Len())
-}
-
-func (ft *flowTable) GetColumnCount() int {
-	return 2
-}
 
 func WatchFlows(ctx context.Context) error {
 	go func() {
