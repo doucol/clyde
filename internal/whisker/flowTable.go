@@ -1,6 +1,8 @@
 package whisker
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -14,11 +16,11 @@ type flowTable struct {
 	tview.TableContentReadOnly
 }
 
-func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
+func (ftd *flowTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
 		return tview.NewTableCell(colTitles[column]).SetMaxWidth(1).SetExpansion(1).SetStyle(colTitleStyle)
 	}
-	if val, ok := flows.Get(row - 1); ok {
+	if val, ok := fds.Get(row); ok {
 		switch column {
 		case 0:
 			return tview.NewTableCell(val.SourceNamespace).SetMaxWidth(1).SetExpansion(1)
@@ -32,13 +34,13 @@ func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
 			return tview.NewTableCell(val.Action).SetMaxWidth(1).SetExpansion(1)
 		}
 	}
-	panic("invalid cell")
+	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))
 }
 
-func (ft *flowTable) GetRowCount() int {
-	return int(flows.Len() + 1)
+func (ftd *flowTable) GetRowCount() int {
+	return fds.Count() + 1
 }
 
-func (ft *flowTable) GetColumnCount() int {
+func (ftd *flowTable) GetColumnCount() int {
 	return len(colTitles)
 }

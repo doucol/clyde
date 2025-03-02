@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/alphadose/haxmap"
 	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/rivo/tview"
 	"k8s.io/client-go/tools/portforward"
@@ -22,20 +22,29 @@ const (
 )
 
 var (
-	app   = tview.NewApplication()
-	flows = haxmap.New[int, FlowResponse]()
+	app = tview.NewApplication()
+	fds *flowdata.FlowDataStore
 )
 
 func WatchFlows(ctx context.Context) error {
+	var err error
+	fds, err = flowdata.NewFlowDataStore()
+	if err != nil {
+		return err
+	}
+	defer fds.Close()
 	go func() {
 		if err := streamFlows(ctx); err != nil {
 			fmt.Printf("Error streaming flows: %v\n", err)
 		}
 	}()
+	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
+		SetContent(&flowTable{}).SetFixed(1, 0)
+
 	flex := tview.NewFlex()
-	flex.SetBorder(true).SetTitle("Calico Flows")
-	table := tview.NewTable().SetBorders(false).SetSelectable(true, false).SetContent(&flowTable{})
-	flex.AddItem(table, 0, 1, true)
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flows")
+	flex.AddItem(tableData, 0, 1, true)
+
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		return err
 	}
@@ -44,11 +53,15 @@ func WatchFlows(ctx context.Context) error {
 
 func flowCatcher(data string) {
 	// fmt.Printf("Received event data: %s\n", data)
-	var fr FlowResponse
+	var fr flowdata.FlowResponse
 	if err := json.Unmarshal([]byte(data), &fr); err != nil {
 		panic(err)
 	}
-	flows.Set(int(flows.Len()), fr)
+	fd := &flowdata.FlowData{FlowResponse: fr}
+	err := fds.Add(fd)
+	if err != nil {
+		panic(err)
+	}
 	app.Draw()
 }
 
