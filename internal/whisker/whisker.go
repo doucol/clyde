@@ -11,6 +11,7 @@ import (
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
+	tcell "github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -33,17 +34,27 @@ func WatchFlows(ctx context.Context) error {
 		return err
 	}
 	defer fds.Close()
+
 	go func() {
 		if err := streamFlows(ctx); err != nil {
-			fmt.Printf("Error streaming flows: %v\n", err)
+			panic(fmt.Sprintf("Error streaming flows: %v\n", err))
 		}
 	}()
+
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
 		SetContent(&flowTable{}).SetFixed(1, 0)
 
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flows")
 	flex.AddItem(tableData, 0, 1, true)
+
+	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlC {
+			app.Stop()
+			return nil
+		}
+		return event
+	})
 
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		return err
@@ -52,7 +63,6 @@ func WatchFlows(ctx context.Context) error {
 }
 
 func flowCatcher(data string) {
-	// fmt.Printf("Received event data: %s\n", data)
 	var fr flowdata.FlowResponse
 	if err := json.Unmarshal([]byte(data), &fr); err != nil {
 		panic(err)
@@ -105,16 +115,20 @@ func streamFlows(ctx context.Context) error {
 	// Start the port forwarding
 	go func() {
 		if err := forwarder.ForwardPorts(); err != nil {
-			fmt.Println(err)
+			panic(err)
 		}
 	}()
 
 	// Wait for the port forwarding to be ready
 	<-readyChan
-	// fmt.Println("Port forwarding is ready")
+
+	go func() {
+		<-ctx.Done()
+		close(stopChan)
+	}()
 
 	sseURL := fmt.Sprintf("http://localhost:%d/flows?watch=true", freePort)
-	if err := util.ConsumeSSEStream(sseURL, flowCatcher); err != nil {
+	if err := util.ConsumeSSEStream(ctx, sseURL, flowCatcher); err != nil {
 		return fmt.Errorf("error consuming SSE stream: %w", err)
 	}
 

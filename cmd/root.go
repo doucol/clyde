@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/doucol/clyde/cmd/watch"
 	"github.com/doucol/clyde/internal/cmdContext"
@@ -20,7 +23,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var kubeConfig, kubeContext string
+var (
+	kubeConfig, kubeContext string
+	stopSignal              = make(chan os.Signal, 1)
+)
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -46,8 +52,15 @@ func init() {
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() int {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		ctx := cmd.Context()
+		signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
+		ctx, cancel := context.WithCancel(ctx)
+		go func() {
+			<-stopSignal
+			cancel()
+		}()
 		cmdContext := cmdContext.NewCmdContext(kubeConfig, kubeContext)
-		cmd.SetContext(cmdContext.ToContext(cmd.Context()))
+		cmd.SetContext(cmdContext.ToContext(ctx))
 	}
 	if err := rootCmd.Execute(); err != nil {
 		return -1
