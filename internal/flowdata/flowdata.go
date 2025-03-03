@@ -3,9 +3,12 @@ package flowdata
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/doucol/clyde/internal/util"
+	"k8s.io/client-go/util/homedir"
 
 	storm "github.com/asdine/storm/v3"
 )
@@ -59,8 +62,21 @@ type FlowDataStore struct {
 	db *storm.DB
 }
 
+func getDbPath() string {
+	dataDir := os.Getenv("XDG_DATA_HOME")
+	if dataDir == "" {
+		dataDir = filepath.Join(homedir.HomeDir(), ".local", "share")
+	}
+	dataDir = filepath.Join(dataDir, "clyde")
+	err := os.MkdirAll(dataDir, 0755)
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Join(dataDir, "flowdata.db")
+}
+
 func NewFlowDataStore() (*FlowDataStore, error) {
-	db, err := storm.Open("/tmp/flowdata.db")
+	db, err := storm.Open(getDbPath())
 	if err != nil {
 		return nil, err
 	}
