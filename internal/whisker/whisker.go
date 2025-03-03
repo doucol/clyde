@@ -45,7 +45,7 @@ func WatchFlows(ctx context.Context) error {
 		SetContent(&flowTable{}).SetFixed(1, 0)
 
 	flex := tview.NewFlex()
-	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flows")
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary")
 	flex.AddItem(tableData, 0, 1, true)
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -104,17 +104,14 @@ func streamFlows(ctx context.Context) error {
 	stopChan := make(chan struct{}, 1)
 	readyChan := make(chan struct{})
 
-	// Create the port forwarder
-	// forwarder, err := portforward.New(dialer, ports, stopChan, readyChan, os.Stdout, os.Stderr)
-	forwarder, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
+	pf, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
 	if err != nil {
 		return err
 	}
-	defer forwarder.Close()
 
 	// Start the port forwarding
 	go func() {
-		if err := forwarder.ForwardPorts(); err != nil {
+		if err := pf.ForwardPorts(); err != nil {
 			panic(err)
 		}
 	}()
@@ -124,7 +121,7 @@ func streamFlows(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		close(stopChan)
+		pf.Close()
 	}()
 
 	sseURL := fmt.Sprintf("http://localhost:%d/flows?watch=true", freePort)
