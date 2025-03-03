@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/homedir"
 )
 
 func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace string, containerName string, envVarName string) (string, string, error) {
@@ -83,4 +86,17 @@ func GetFreePort() (port int, err error) {
 		}
 	}
 	return
+}
+
+func GetDataPath() string {
+	dataDir := os.Getenv("XDG_DATA_HOME")
+	if dataDir == "" {
+		dataDir = filepath.Join(homedir.HomeDir(), ".local", "share")
+	}
+	dataDir = filepath.Join(dataDir, "clyde")
+	err := os.MkdirAll(dataDir, 0755)
+	if err != nil {
+		panic(err)
+	}
+	return dataDir
 }
