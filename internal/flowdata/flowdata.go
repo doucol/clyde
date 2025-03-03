@@ -35,7 +35,7 @@ type FlowData struct {
 	FlowResponse `storm:"inline"`
 }
 
-type FlowAggregate struct {
+type FlowSum struct {
 	ID              int       `json:"id" storm:"id,increment"`
 	Key             string    `json:"key" storm:"unique"`
 	StartTime       time.Time `json:"start_time"`
@@ -70,7 +70,7 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.Init(&FlowAggregate{})
+	err = db.Init(&FlowSum{})
 	if err != nil {
 		return nil, err
 	}
@@ -88,36 +88,36 @@ func flowKey(fd *FlowData) string {
 	return fmt.Sprintf("%s|%s|%s|%s|%s|%d", fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fd.DestPort)
 }
 
-func toAgg(key string, fd *FlowData, fa *FlowAggregate) *FlowAggregate {
-	if fa.Key == "" {
-		fa.Key = key
-		fa.StartTime = fd.StartTime
-		fa.EndTime = fd.EndTime
+func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
+	if fs.Key == "" {
+		fs.Key = key
+		fs.StartTime = fd.StartTime
+		fs.EndTime = fd.EndTime
 	} else {
-		fa.StartTime = util.MinTime(fa.StartTime, fd.StartTime)
-		fa.EndTime = util.MaxTime(fa.EndTime, fd.EndTime)
+		fs.StartTime = util.MinTime(fs.StartTime, fd.StartTime)
+		fs.EndTime = util.MaxTime(fs.EndTime, fd.EndTime)
 	}
-	fa.Action = fd.Action
-	fa.SourceName = fd.SourceName
-	fa.SourceNamespace = fd.SourceNamespace
-	fa.SourceLabels = fd.SourceLabels
-	fa.DestName = fd.DestName
-	fa.DestNamespace = fd.DestNamespace
-	fa.DestLabels = fd.DestLabels
-	fa.Protocol = fd.Protocol
-	fa.DestPort = fd.DestPort
-	fa.Reporter = fd.Reporter
-	fa.PacketsIn += uint64(fd.PacketsIn)
-	fa.PacketsOut += uint64(fd.PacketsOut)
-	fa.BytesIn += uint64(fd.BytesIn)
-	fa.BytesOut += uint64(fd.BytesOut)
-	return fa
+	fs.Action = fd.Action
+	fs.SourceName = fd.SourceName
+	fs.SourceNamespace = fd.SourceNamespace
+	fs.SourceLabels = fd.SourceLabels
+	fs.DestName = fd.DestName
+	fs.DestNamespace = fd.DestNamespace
+	fs.DestLabels = fd.DestLabels
+	fs.Protocol = fd.Protocol
+	fs.DestPort = fd.DestPort
+	fs.Reporter = fd.Reporter
+	fs.PacketsIn += uint64(fd.PacketsIn)
+	fs.PacketsOut += uint64(fd.PacketsOut)
+	fs.BytesIn += uint64(fd.BytesIn)
+	fs.BytesOut += uint64(fd.BytesOut)
+	return fs
 }
 
 func (fds *FlowDataStore) Add(fd *FlowData) error {
 	inTx, commit := false, false
 	key := flowKey(fd)
-	fa := &FlowAggregate{}
+	fs := &FlowSum{}
 	tx, err := fds.db.Begin(true)
 	if err != nil {
 		return err
@@ -131,12 +131,12 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 			}
 		}
 	}()
-	err = tx.One("Key", key, fa)
+	err = tx.One("Key", key, fs)
 	if err != nil && !errors.Is(err, storm.ErrNotFound) {
 		return err
 	}
-	fa = toAgg(key, fd, fa)
-	err = tx.Save(fa)
+	fs = toSum(key, fd, fs)
+	err = tx.Save(fs)
 	if err != nil {
 		return err
 	}
@@ -152,9 +152,9 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 	return nil
 }
 
-func (fds *FlowDataStore) GetAggregate(id int) (*FlowAggregate, bool) {
-	fa := &FlowAggregate{}
-	err := fds.db.One("ID", id, fa)
+func (fds *FlowDataStore) GetFlowSum(id int) (*FlowSum, bool) {
+	fs := &FlowSum{}
+	err := fds.db.One("ID", id, fs)
 	if err != nil {
 		if errors.Is(err, storm.ErrNotFound) {
 			return nil, false
@@ -162,11 +162,11 @@ func (fds *FlowDataStore) GetAggregate(id int) (*FlowAggregate, bool) {
 			panic(fmt.Errorf("error getting flow aggregate: %v", err))
 		}
 	}
-	return fa, true
+	return fs, true
 }
 
-func (fds *FlowDataStore) CountAggregate() int {
-	cnt, err := fds.db.Count(&FlowAggregate{})
+func (fds *FlowDataStore) GetFlowSumCount() int {
+	cnt, err := fds.db.Count(&FlowSum{})
 	if err != nil {
 		panic(err)
 	}

@@ -29,7 +29,7 @@ func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
 		return tview.NewTableCell(colTitles[column]).SetMaxWidth(1).SetExpansion(1).SetStyle(colTitleStyle)
 	}
-	if fa, ok := fds.GetAggregate(row); ok {
+	if fa, ok := fds.GetFlowSum(row); ok {
 		switch column {
 		case 0:
 			return tview.NewTableCell(fa.SourceNamespace).SetMaxWidth(1).SetExpansion(1)
@@ -59,7 +59,7 @@ func (ft *flowTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (ft *flowTable) GetRowCount() int {
-	return fds.CountAggregate() + 1
+	return fds.GetFlowSumCount() + 1
 }
 
 func (ft *flowTable) GetColumnCount() int {
