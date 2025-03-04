@@ -2,6 +2,7 @@ package cmdContext
 
 import (
 	"context"
+	"errors"
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -20,10 +21,13 @@ type CmdContext struct {
 	k8scfg      *rest.Config
 	dc          *dynamic.DynamicClient
 	cs          *kubernetes.Clientset
+	cancel      context.CancelFunc
 }
 
 func (c *CmdContext) ToContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, cmdContextKey, c)
+	ctx2, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+	return context.WithValue(ctx2, cmdContextKey, c)
 }
 
 func (c *CmdContext) GetConfig() *rest.Config {
@@ -67,6 +71,13 @@ func (c *CmdContext) Clientset() *kubernetes.Clientset {
 	}
 	c.cs = cs
 	return c.cs
+}
+
+func (c *CmdContext) Cancel() {
+	if c.cancel == nil {
+		panic(errors.New("cancel function not set"))
+	}
+	c.cancel()
 }
 
 func CmdContextFromContext(ctx context.Context) *CmdContext {

@@ -3,10 +3,12 @@ package whisker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/flowdata"
@@ -21,13 +23,14 @@ const (
 )
 
 func WatchFlows(ctx context.Context) error {
+	wg := sync.WaitGroup{}
 	fds, err := flowdata.NewFlowDataStore()
 	if err != nil {
 		return err
 	}
 	defer fds.Close()
 
-	flowApp := NewFlowApp(fds)
+	flowApp := NewFlowApp(ctx, fds)
 
 	flowCatcher := func(data string) {
 		var fr flowdata.FlowResponse
@@ -42,15 +45,26 @@ func WatchFlows(ctx context.Context) error {
 		flowApp.app.Draw()
 	}
 
+	// Go capture flows
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if err := streamFlows(ctx, flowCatcher); err != nil {
-			panic(fmt.Sprintf("Error streaming flows: %v\n", err))
+			panic(err)
 		}
 	}()
 
-	if err := flowApp.Run(); err != nil {
-		return err
-	}
+	// Go run the flow watcher app
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := flowApp.Run(); err != nil {
+			panic(err)
+		}
+	}()
+
+	// Wait for both goroutines to finish
+	wg.Wait()
 	return nil
 }
 
@@ -100,15 +114,15 @@ func streamFlows(ctx context.Context, flowCatcher func(data string)) error {
 
 	go func() {
 		<-ctx.Done()
-		pf.Close()
+		stopChan <- struct{}{}
 	}()
 
 	sseURL := fmt.Sprintf("http://localhost:%d/flows?watch=true", freePort)
 	if err := util.ConsumeSSEStream(ctx, sseURL, flowCatcher); err != nil {
-		return fmt.Errorf("error consuming SSE stream: %w", err)
+		if !errors.Is(err, io.ErrUnexpectedEOF) {
+			return err
+		}
 	}
 
-	// Keep the program running until interrupted
-	<-stopChan
 	return nil
 }
