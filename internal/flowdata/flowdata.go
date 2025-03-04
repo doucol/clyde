@@ -84,7 +84,7 @@ func (fds *FlowDataStore) Close() {
 	}
 }
 
-func flowKey(fd *FlowData) string {
+func flowSumKey(fd *FlowData) string {
 	return fmt.Sprintf("%s|%s|%s|%s|%s|%d", fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fd.DestPort)
 }
 
@@ -116,7 +116,7 @@ func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
 
 func (fds *FlowDataStore) Add(fd *FlowData) error {
 	inTx, commit := false, false
-	key := flowKey(fd)
+	key := flowSumKey(fd)
 	fs := &FlowSum{}
 	tx, err := fds.db.Begin(true)
 	if err != nil {
@@ -167,6 +167,27 @@ func (fds *FlowDataStore) GetFlowSum(id int) (*FlowSum, bool) {
 
 func (fds *FlowDataStore) GetFlowSumCount() int {
 	cnt, err := fds.db.Count(&FlowSum{})
+	if err != nil {
+		panic(err)
+	}
+	return cnt
+}
+
+func (fds *FlowDataStore) GetFlowDetail(id int) (*FlowData, bool) {
+	fd := &FlowData{}
+	err := fds.db.One("ID", id, fd)
+	if err != nil {
+		if errors.Is(err, storm.ErrNotFound) {
+			return nil, false
+		} else {
+			panic(fmt.Errorf("error getting flow aggregate: %v", err))
+		}
+	}
+	return fd, true
+}
+
+func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
+	cnt, err := fds.db.Count(&FlowData{})
 	if err != nil {
 		panic(err)
 	}

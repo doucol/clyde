@@ -11,8 +11,6 @@ import (
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
-	tcell "github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -22,60 +20,41 @@ const (
 	WhiskerBackendContainerName = "whisker-backend"
 )
 
-var (
-	app = tview.NewApplication()
-	fds *flowdata.FlowDataStore
-)
-
 func WatchFlows(ctx context.Context) error {
-	var err error
-	fds, err = flowdata.NewFlowDataStore()
+	fds, err := flowdata.NewFlowDataStore()
 	if err != nil {
 		return err
 	}
 	defer fds.Close()
 
+	flowApp := NewFlowApp(fds)
+
+	flowCatcher := func(data string) {
+		var fr flowdata.FlowResponse
+		if err := json.Unmarshal([]byte(data), &fr); err != nil {
+			panic(err)
+		}
+		fd := &flowdata.FlowData{FlowResponse: fr}
+		err := fds.Add(fd)
+		if err != nil {
+			panic(err)
+		}
+		flowApp.app.Draw()
+	}
+
 	go func() {
-		if err := streamFlows(ctx); err != nil {
+		if err := streamFlows(ctx, flowCatcher); err != nil {
 			panic(fmt.Sprintf("Error streaming flows: %v\n", err))
 		}
 	}()
 
-	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowTable{}).SetFixed(1, 0)
-
-	flex := tview.NewFlex()
-	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary")
-	flex.AddItem(tableData, 0, 1, true)
-
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC {
-			app.Stop()
-			return nil
-		}
-		return event
-	})
-
-	if err := app.SetRoot(flex, true).Run(); err != nil {
+	if err := flowApp.Run(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func flowCatcher(data string) {
-	var fr flowdata.FlowResponse
-	if err := json.Unmarshal([]byte(data), &fr); err != nil {
-		panic(err)
-	}
-	fd := &flowdata.FlowData{FlowResponse: fr}
-	err := fds.Add(fd)
-	if err != nil {
-		panic(err)
-	}
-	app.Draw()
-}
-
-func streamFlows(ctx context.Context) error {
+func streamFlows(ctx context.Context, flowCatcher func(data string)) error {
 	config := cmdContext.K8sConfigFromContext(ctx)
 
 	// URL for the portforward endpoint on the pod
