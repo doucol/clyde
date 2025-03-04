@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/doucol/clyde/internal/util"
+	"k8s.io/apimachinery/pkg/util/runtime"
 
 	storm "github.com/asdine/storm/v3"
 )
@@ -80,7 +81,7 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 func (fds *FlowDataStore) Close() {
 	err := fds.db.Close()
 	if err != nil {
-		panic(err)
+		runtime.HandleError(err)
 	}
 }
 
