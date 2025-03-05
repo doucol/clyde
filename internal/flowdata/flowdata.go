@@ -85,10 +85,7 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 }
 
 func (fds *FlowDataStore) Close() {
-	err := fds.db.Close()
-	if err != nil {
-		runtime.HandleError(err)
-	}
+	runtime.HandleError(fds.db.Close())
 }
 
 func flowSumKey(fd *FlowData) string {
@@ -143,8 +140,7 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 	inTx = true
 	defer func() {
 		if inTx && !commit {
-			err := tx.Rollback()
-			runtime.HandleError(err)
+			runtime.HandleError(tx.Rollback())
 		}
 	}()
 	err = tx.One("Key", key, fs)

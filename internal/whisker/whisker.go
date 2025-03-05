@@ -7,6 +7,7 @@ import (
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
+	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const (
@@ -38,23 +39,20 @@ func WatchFlows(ctx context.Context) error {
 		flowApp.app.Draw()
 	}
 
+	dc := util.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
+
 	// Go capture flows
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		dc := util.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
-		if err := dc.CatchDataFromSSEStream(); err != nil {
-			panic(err)
-		}
+		runtime.HandleError(dc.CatchDataFromSSEStream())
 	}()
 
 	// Go run the flow watcher app
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := flowApp.Run(); err != nil {
-			panic(err)
-		}
+		runtime.HandleError(flowApp.Run())
 	}()
 
 	// Wait for both goroutines to finish

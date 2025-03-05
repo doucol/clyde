@@ -24,8 +24,8 @@ func (fa *FlowApp) Run() error {
 	cc := cmdContext.CmdContextFromContext(fa.ctx)
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC {
-			fa.app.Stop()
 			cc.Cancel()
+			fa.app.Stop()
 			return nil
 		}
 		return event

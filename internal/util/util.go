@@ -52,6 +52,15 @@ func ConsumeSSEStream(ctx context.Context, url string, cb func(data string)) err
 
 	// Read the SSE stream line by line
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		select {
+		case <-ctx.Done():
+			return 0, nil, context.Canceled
+		default:
+			return bufio.ScanLines(data, atEOF)
+		}
+	})
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -69,11 +78,7 @@ func ConsumeSSEStream(ctx context.Context, url string, cb func(data string)) err
 	}
 
 	// Handle any errors during scanning
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading SSE stream: %w", err)
-	}
-
-	return nil
+	return scanner.Err()
 }
 
 func GetFreePort() (port int, err error) {

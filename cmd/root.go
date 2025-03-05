@@ -21,10 +21,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var (
-	kubeConfig, kubeContext string
-	stopSignal              = make(chan os.Signal, 1)
-)
+var kubeConfig, kubeContext string
 
 func init() {
 	dflt := ""
@@ -40,13 +37,15 @@ func init() {
 }
 
 func Execute() int {
+	stopSignal := make(chan os.Signal, 1)
+	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
+	cc := cmdContext.NewCmdContext(kubeConfig, kubeContext)
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		cc := cmdContext.NewCmdContext(kubeConfig, kubeContext)
 		ctx := cc.ToContext(cmd.Context())
-		signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
+		ncc := cmdContext.CmdContextFromContext(ctx)
 		go func() {
 			<-stopSignal
-			cc.Cancel()
+			ncc.Cancel()
 		}()
 		cmd.SetContext(ctx)
 	}

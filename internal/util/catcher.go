@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/doucol/clyde/internal/cmdContext"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -68,13 +69,10 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	if err != nil {
 		return err
 	}
-	defer func() { stopChan <- struct{}{} }()
 
 	// Start the port forwarding
 	go func() {
-		if err := pf.ForwardPorts(); err != nil {
-			panic(err)
-		}
+		runtime.HandleError(pf.ForwardPorts())
 	}()
 
 	// Wait for the port forwarding to be ready
@@ -89,11 +87,20 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		stopChan <- struct{}{}
 	}()
 
+	defer func() {
+		// Shutdown the port forwarding in case we've exited for some other reason
+		if !shutdown {
+			stopChan <- struct{}{}
+		}
+	}()
+
 	//
 	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
 	if err := ConsumeSSEStream(dc.ctx, sseURL, dc.catcher); err != nil {
 		if !shutdown || !errors.Is(err, io.ErrUnexpectedEOF) {
-			return err
+			if !errors.Is(err, context.Canceled) {
+				return err
+			}
 		}
 	}
 
