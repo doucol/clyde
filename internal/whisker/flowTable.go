@@ -13,9 +13,9 @@ import (
 
 var (
 	keyCols    = []string{"SRC NAMESPACE", "SRC NAME", "DST NAMESPACE", "DST NAME", "PROTO", "PORT"}
-	datCols    = []string{"PACK IN", "PACK OUT", "BYTE IN", "BYTE OUT", "ACTION"}
+	datCols    = []string{"SRC COUNT", "DST COUNT", "SRC PACK IN", "SRC PACK OUT", "SRC BYTE IN", "SRC BYTE OUT", "DST PACK IN", "DST PACK OUT", "DST BYTE IN", "DST BYTE OUT", "ACTION"}
 	sumCols    = append(keyCols, datCols...)
-	dtlCols    = append([]string{"START TIME", "END TIME", "SRC LABELS", "DST LABELS", "REPORTER"}, datCols...)
+	dtlCols    = []string{"START TIME", "END TIME", "SRC LABELS", "DST LABELS", "REPORTER", "PACK IN", "PACK OUT", "BYTE IN", "BYTE OUT", "ACTION"}
 	titleStyle = tcell.Style{}.Bold(true)
 )
 
@@ -51,14 +51,26 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 		case 5:
 			return tview.NewTableCell(intos(fs.DestPort)).SetMaxWidth(1).SetExpansion(0)
 		case 6:
-			return tview.NewTableCell(uintos(fs.PacketsIn)).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(intos(fs.SourceReports)).SetMaxWidth(1).SetExpansion(1)
 		case 7:
-			return tview.NewTableCell(uintos(fs.PacketsOut)).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(intos(fs.DestReports)).SetMaxWidth(1).SetExpansion(1)
 		case 8:
-			return tview.NewTableCell(uintos(fs.BytesIn)).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(uintos(fs.SourcePacketsIn)).SetMaxWidth(1).SetExpansion(1)
 		case 9:
-			return tview.NewTableCell(uintos(fs.BytesOut)).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(uintos(fs.SourcePacketsOut)).SetMaxWidth(1).SetExpansion(1)
 		case 10:
+			return tview.NewTableCell(uintos(fs.SourceBytesIn)).SetMaxWidth(1).SetExpansion(1)
+		case 11:
+			return tview.NewTableCell(uintos(fs.SourceBytesOut)).SetMaxWidth(1).SetExpansion(1)
+		case 12:
+			return tview.NewTableCell(uintos(fs.DestPacketsIn)).SetMaxWidth(1).SetExpansion(1)
+		case 13:
+			return tview.NewTableCell(uintos(fs.DestPacketsOut)).SetMaxWidth(1).SetExpansion(1)
+		case 14:
+			return tview.NewTableCell(uintos(fs.DestBytesIn)).SetMaxWidth(1).SetExpansion(1)
+		case 15:
+			return tview.NewTableCell(uintos(fs.DestBytesOut)).SetMaxWidth(1).SetExpansion(1)
+		case 16:
 			return tview.NewTableCell(fs.Action).SetMaxWidth(1).SetExpansion(0)
 		}
 	}

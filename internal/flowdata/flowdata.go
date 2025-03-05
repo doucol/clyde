@@ -38,24 +38,29 @@ type FlowData struct {
 }
 
 type FlowSum struct {
-	ID              int       `json:"id" storm:"id,increment"`
-	Key             string    `json:"key" storm:"unique"`
-	StartTime       time.Time `json:"start_time"`
-	EndTime         time.Time `json:"end_time"`
-	Action          string    `json:"action"`
-	SourceName      string    `json:"source_name"`
-	SourceNamespace string    `json:"source_namespace"`
-	SourceLabels    string    `json:"source_labels"`
-	DestName        string    `json:"dest_name"`
-	DestNamespace   string    `json:"dest_namespace"`
-	DestLabels      string    `json:"dest_labels"`
-	Protocol        string    `json:"protocol"`
-	DestPort        int64     `json:"dest_port"`
-	Reporter        string    `json:"reporter"`
-	PacketsIn       uint64    `json:"packets_in"`
-	PacketsOut      uint64    `json:"packets_out"`
-	BytesIn         uint64    `json:"bytes_in"`
-	BytesOut        uint64    `json:"bytes_out"`
+	ID               int       `json:"id" storm:"id,increment"`
+	Key              string    `json:"key" storm:"unique"`
+	StartTime        time.Time `json:"start_time"`
+	EndTime          time.Time `json:"end_time"`
+	Action           string    `json:"action"`
+	SourceName       string    `json:"source_name"`
+	SourceNamespace  string    `json:"source_namespace"`
+	SourceLabels     string    `json:"source_labels"`
+	DestName         string    `json:"dest_name"`
+	DestNamespace    string    `json:"dest_namespace"`
+	DestLabels       string    `json:"dest_labels"`
+	Protocol         string    `json:"protocol"`
+	DestPort         int64     `json:"dest_port"`
+	SourceReports    int64     `json:"source_reports"`
+	DestReports      int64     `json:"dest_reports"`
+	SourcePacketsIn  uint64    `json:"source_packets_in"`
+	SourcePacketsOut uint64    `json:"source_packets_out"`
+	SourceBytesIn    uint64    `json:"source_bytes_in"`
+	SourceBytesOut   uint64    `json:"source_bytes_out"`
+	DestPacketsIn    uint64    `json:"dest_packets_in"`
+	DestPacketsOut   uint64    `json:"dest_packets_out"`
+	DestBytesIn      uint64    `json:"dest_bytes_in"`
+	DestBytesOut     uint64    `json:"dest_bytes_out"`
 }
 
 type FlowDataStore struct {
@@ -108,11 +113,22 @@ func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
 	fs.DestLabels = fd.DestLabels
 	fs.Protocol = fd.Protocol
 	fs.DestPort = fd.DestPort
-	fs.Reporter = fd.Reporter
-	fs.PacketsIn += uint64(fd.PacketsIn)
-	fs.PacketsOut += uint64(fd.PacketsOut)
-	fs.BytesIn += uint64(fd.BytesIn)
-	fs.BytesOut += uint64(fd.BytesOut)
+	switch fd.Reporter {
+	case "src":
+		fs.SourceReports += 1
+		fs.SourcePacketsIn += uint64(fd.PacketsIn)
+		fs.SourcePacketsOut += uint64(fd.PacketsOut)
+		fs.SourceBytesIn += uint64(fd.BytesIn)
+		fs.SourceBytesOut += uint64(fd.BytesOut)
+	case "dst":
+		fs.DestReports += 1
+		fs.DestPacketsIn += uint64(fd.PacketsIn)
+		fs.DestPacketsOut += uint64(fd.PacketsOut)
+		fs.DestBytesIn += uint64(fd.BytesIn)
+		fs.DestBytesOut += uint64(fd.BytesOut)
+	default:
+		panic(errors.New("unknown reporter in flow data: " + fd.Reporter))
+	}
 	return fs
 }
 
@@ -128,9 +144,7 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 	defer func() {
 		if inTx && !commit {
 			err := tx.Rollback()
-			if err != nil {
-				panic(fmt.Sprintf("error rolling back transaction: %v", err))
-			}
+			runtime.HandleError(err)
 		}
 	}()
 	err = tx.One("Key", key, fs)
@@ -176,7 +190,7 @@ func (fds *FlowDataStore) GetFlowSumCount() int {
 	return cnt
 }
 
-func (fds *FlowDataStore) GetFlowDetail(key string, row int) (*FlowData, bool) {
+func (fds *FlowDataStore) GetFlowDetail(key string, id int) (*FlowData, bool) {
 	fs := &FlowSum{}
 	err := fds.db.One("Key", key, fs)
 	if err != nil {
@@ -184,11 +198,11 @@ func (fds *FlowDataStore) GetFlowDetail(key string, row int) (*FlowData, bool) {
 	}
 
 	fd := []FlowData{}
-	err = fds.db.Find("SumID", fs.ID, &fd)
+	err = fds.db.Find("SumID", fs.ID, &fd, storm.Skip(id-1), storm.Limit(1))
 	if err != nil {
-		panic(fmt.Errorf("error getting flow detail: %s, %d, %v", key, row, fs))
+		panic(fmt.Errorf("error getting flow detail: %s, %d, %v", key, id, fs))
 	}
-	return &fd[row-1], true
+	return &fd[0], true
 }
 
 func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
