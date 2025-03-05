@@ -33,6 +33,7 @@ type FlowResponse struct {
 
 type FlowData struct {
 	ID           int `json:"id" storm:"id,increment"`
+	SumID        int `json:"sum_id" storm:"index"`
 	FlowResponse `storm:"inline"`
 }
 
@@ -141,6 +142,7 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 	if err != nil {
 		return err
 	}
+	fd.SumID = fs.ID
 	err = tx.Save(fd)
 	if err != nil {
 		return err
@@ -174,23 +176,32 @@ func (fds *FlowDataStore) GetFlowSumCount() int {
 	return cnt
 }
 
-func (fds *FlowDataStore) GetFlowDetail(id int) (*FlowData, bool) {
-	fd := &FlowData{}
-	err := fds.db.One("ID", id, fd)
+func (fds *FlowDataStore) GetFlowDetail(key string, row int) (*FlowData, bool) {
+	fs := &FlowSum{}
+	err := fds.db.One("Key", key, fs)
 	if err != nil {
-		if errors.Is(err, storm.ErrNotFound) {
-			return nil, false
-		} else {
-			panic(fmt.Errorf("error getting flow aggregate: %v", err))
-		}
+		panic(fmt.Errorf("error getting flow aggregate: %v", err))
 	}
-	return fd, true
+
+	fd := []FlowData{}
+	err = fds.db.Find("SumID", fs.ID, &fd)
+	if err != nil {
+		panic(fmt.Errorf("error getting flow detail: %s, %d, %v", key, row, fs))
+	}
+	return &fd[row-1], true
 }
 
 func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
-	cnt, err := fds.db.Count(&FlowData{})
+	fs := &FlowSum{}
+	err := fds.db.One("Key", key, fs)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("error getting flow aggregate: %v", err))
 	}
-	return cnt
+
+	fd := []FlowData{}
+	err = fds.db.Find("SumID", fs.ID, &fd)
+	if err != nil {
+		panic(fmt.Errorf("error getting flow detail: %s, %v", key, fs))
+	}
+	return len(fd)
 }

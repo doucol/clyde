@@ -84,7 +84,7 @@ func (fdt *flowDetailTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
 		return tview.NewTableCell(dtlCols[column]).SetMaxWidth(1).SetExpansion(1).SetStyle(titleStyle)
 	}
-	if fd, ok := fdt.fds.GetFlowDetail(row); ok {
+	if fd, ok := fdt.fds.GetFlowDetail(fdt.key, row); ok {
 		switch column {
 		case 0:
 			return tview.NewTableCell(fd.StartTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(1)
