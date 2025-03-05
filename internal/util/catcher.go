@@ -65,19 +65,6 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	stopChan := make(chan struct{}, 1)
 	readyChan := make(chan struct{})
 
-	pf, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
-	if err != nil {
-		return err
-	}
-
-	// Start the port forwarding
-	go func() {
-		runtime.HandleError(pf.ForwardPorts())
-	}()
-
-	// Wait for the port forwarding to be ready
-	<-readyChan
-
 	shutdown := false
 	go func() {
 		// Shutdown the port forwarding when the context is done
@@ -93,6 +80,21 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 			stopChan <- struct{}{}
 		}
 	}()
+
+	pf, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
+	if err != nil {
+		return err
+	}
+
+	// Start the port forwarding
+	go func() {
+		if err := pf.ForwardPorts(); err != nil && !shutdown {
+			runtime.HandleError(err)
+		}
+	}()
+
+	// Wait for the port forwarding to be ready
+	<-readyChan
 
 	//
 	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
