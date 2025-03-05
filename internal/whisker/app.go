@@ -3,6 +3,7 @@ package whisker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/flowdata"
@@ -24,12 +25,25 @@ func (fa *FlowApp) Run() error {
 	cc := cmdContext.CmdContextFromContext(fa.ctx)
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC {
-			cc.Cancel()
-			fa.app.Stop()
+			go cc.Cancel()
+			go fa.app.Stop()
 			return nil
 		}
 		return event
 	})
+
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-fa.ctx.Done():
+				return
+			case <-ticker.C:
+				fa.app.Draw()
+			}
+		}
+	}()
 
 	if err := fa.ViewSummary().Run(); err != nil {
 		return err

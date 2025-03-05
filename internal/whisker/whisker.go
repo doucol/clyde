@@ -36,7 +36,6 @@ func WatchFlows(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		flowApp.app.Draw()
 	}
 
 	dc := util.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
