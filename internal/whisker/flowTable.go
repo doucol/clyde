@@ -11,6 +11,39 @@ import (
 	"github.com/rivo/tview"
 )
 
+const (
+	SUMCOL_SRC_NAMESPACE = iota
+	SUMCOL_SRC_NAME
+	SUMCOL_DST_NAMESPACE
+	SUMCOL_DST_NAME
+	SUMCOL_PROTO
+	SUMCOL_PORT
+	SUMCOL_SRC_COUNT
+	SUMCOL_DST_COUNT
+	SUMCOL_SRC_PACK_IN
+	SUMCOL_SRC_PACK_OUT
+	SUMCOL_SRC_BYTE_IN
+	SUMCOL_SRC_BYTE_OUT
+	SUMCOL_DST_PACK_IN
+	SUMCOL_DST_PACK_OUT
+	SUMCOL_DST_BYTE_IN
+	SUMCOL_DST_BYTE_OUT
+	SUMCOL_ACTION
+)
+
+const (
+	DTLCOL_START_TIME = iota
+	DTLCOL_END_TIME
+	DTLCOL_SRC_LABELS
+	DTLCOL_DST_LABELS
+	DTLCOL_REPORTER
+	DTLCOL_PACK_IN
+	DTLCOL_PACK_OUT
+	DTLCOL_BYTE_IN
+	DTLCOL_BYTE_OUT
+	DTLCOL_ACTION
+)
+
 var (
 	keyCols    = []string{"SRC NAMESPACE", "SRC NAME", "DST NAMESPACE", "DST NAME", "PROTO", "PORT"}
 	datCols    = []string{"SRC COUNT", "DST COUNT", "SRC PACK IN", "SRC PACK OUT", "SRC BYTE IN", "SRC BYTE OUT", "DST PACK IN", "DST PACK OUT", "DST BYTE IN", "DST BYTE OUT", "ACTION"}
@@ -38,39 +71,39 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 	}
 	if fs, ok := fst.fds.GetFlowSum(row); ok {
 		switch column {
-		case 0:
+		case SUMCOL_SRC_NAMESPACE:
 			return tview.NewTableCell(fs.SourceNamespace).SetMaxWidth(1).SetExpansion(1)
-		case 1:
+		case SUMCOL_SRC_NAME:
 			return tview.NewTableCell(fs.SourceName).SetMaxWidth(1).SetExpansion(2)
-		case 2:
+		case SUMCOL_DST_NAMESPACE:
 			return tview.NewTableCell(fs.DestNamespace).SetMaxWidth(1).SetExpansion(1)
-		case 3:
+		case SUMCOL_DST_NAME:
 			return tview.NewTableCell(fs.DestName).SetMaxWidth(1).SetExpansion(2)
-		case 4:
+		case SUMCOL_PROTO:
 			return tview.NewTableCell(fs.Protocol).SetMaxWidth(1).SetExpansion(0)
-		case 5:
+		case SUMCOL_PORT:
 			return tview.NewTableCell(intos(fs.DestPort)).SetMaxWidth(1).SetExpansion(0)
-		case 6:
+		case SUMCOL_SRC_COUNT:
 			return tview.NewTableCell(intos(fs.SourceReports)).SetMaxWidth(1).SetExpansion(1)
-		case 7:
+		case SUMCOL_DST_COUNT:
 			return tview.NewTableCell(intos(fs.DestReports)).SetMaxWidth(1).SetExpansion(1)
-		case 8:
+		case SUMCOL_SRC_PACK_IN:
 			return tview.NewTableCell(uintos(fs.SourcePacketsIn)).SetMaxWidth(1).SetExpansion(1)
-		case 9:
+		case SUMCOL_SRC_PACK_OUT:
 			return tview.NewTableCell(uintos(fs.SourcePacketsOut)).SetMaxWidth(1).SetExpansion(1)
-		case 10:
+		case SUMCOL_SRC_BYTE_IN:
 			return tview.NewTableCell(uintos(fs.SourceBytesIn)).SetMaxWidth(1).SetExpansion(1)
-		case 11:
+		case SUMCOL_SRC_BYTE_OUT:
 			return tview.NewTableCell(uintos(fs.SourceBytesOut)).SetMaxWidth(1).SetExpansion(1)
-		case 12:
+		case SUMCOL_DST_PACK_IN:
 			return tview.NewTableCell(uintos(fs.DestPacketsIn)).SetMaxWidth(1).SetExpansion(1)
-		case 13:
+		case SUMCOL_DST_PACK_OUT:
 			return tview.NewTableCell(uintos(fs.DestPacketsOut)).SetMaxWidth(1).SetExpansion(1)
-		case 14:
+		case SUMCOL_DST_BYTE_IN:
 			return tview.NewTableCell(uintos(fs.DestBytesIn)).SetMaxWidth(1).SetExpansion(1)
-		case 15:
+		case SUMCOL_DST_BYTE_OUT:
 			return tview.NewTableCell(uintos(fs.DestBytesOut)).SetMaxWidth(1).SetExpansion(1)
-		case 16:
+		case SUMCOL_ACTION:
 			return tview.NewTableCell(fs.Action).SetMaxWidth(1).SetExpansion(0)
 		}
 	}
@@ -98,25 +131,25 @@ func (fdt *flowDetailTable) GetCell(row, column int) *tview.TableCell {
 	}
 	if fd, ok := fdt.fds.GetFlowDetail(fdt.key, row); ok {
 		switch column {
-		case 0:
+		case DTLCOL_START_TIME:
 			return tview.NewTableCell(fd.StartTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(1)
-		case 1:
+		case DTLCOL_END_TIME:
 			return tview.NewTableCell(fd.EndTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(2)
-		case 2:
+		case DTLCOL_SRC_LABELS:
 			return tview.NewTableCell(fd.SourceLabels).SetMaxWidth(1).SetExpansion(1)
-		case 3:
+		case DTLCOL_DST_LABELS:
 			return tview.NewTableCell(fd.DestLabels).SetMaxWidth(1).SetExpansion(1)
-		case 4:
+		case DTLCOL_REPORTER:
 			return tview.NewTableCell(fd.Reporter).SetMaxWidth(1).SetExpansion(0)
-		case 5:
+		case DTLCOL_PACK_IN:
 			return tview.NewTableCell(intos(fd.PacketsIn)).SetMaxWidth(1).SetExpansion(1)
-		case 6:
+		case DTLCOL_PACK_OUT:
 			return tview.NewTableCell(intos(fd.PacketsOut)).SetMaxWidth(1).SetExpansion(1)
-		case 7:
+		case DTLCOL_BYTE_IN:
 			return tview.NewTableCell(intos(fd.BytesIn)).SetMaxWidth(1).SetExpansion(1)
-		case 8:
+		case DTLCOL_BYTE_OUT:
 			return tview.NewTableCell(intos(fd.BytesOut)).SetMaxWidth(1).SetExpansion(1)
-		case 9:
+		case DTLCOL_ACTION:
 			return tview.NewTableCell(fd.Action).SetMaxWidth(1).SetExpansion(0)
 		}
 	}
@@ -144,18 +177,18 @@ func (fdt *flowDetailTableHeader) GetCell(row, column int) *tview.TableCell {
 	}
 	keyVals := strings.Split(fdt.key, "|")
 	switch column {
-	case 0:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(1)
-	case 1:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(2)
-	case 2:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(1)
-	case 3:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(2)
-	case 4:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(0)
-	case 5:
-		return tview.NewTableCell(keyVals[column]).SetMaxWidth(1).SetExpansion(0)
+	case SUMCOL_SRC_NAMESPACE:
+		return tview.NewTableCell(keyVals[SUMCOL_SRC_NAMESPACE]).SetMaxWidth(1).SetExpansion(1)
+	case SUMCOL_SRC_NAME:
+		return tview.NewTableCell(keyVals[SUMCOL_SRC_NAME]).SetMaxWidth(1).SetExpansion(2)
+	case SUMCOL_DST_NAMESPACE:
+		return tview.NewTableCell(keyVals[SUMCOL_DST_NAMESPACE]).SetMaxWidth(1).SetExpansion(1)
+	case SUMCOL_DST_NAME:
+		return tview.NewTableCell(keyVals[SUMCOL_DST_NAME]).SetMaxWidth(1).SetExpansion(2)
+	case SUMCOL_PROTO:
+		return tview.NewTableCell(keyVals[SUMCOL_PROTO]).SetMaxWidth(1).SetExpansion(0)
+	case SUMCOL_PORT:
+		return tview.NewTableCell(keyVals[SUMCOL_PORT]).SetMaxWidth(1).SetExpansion(0)
 	}
 	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))
 }
