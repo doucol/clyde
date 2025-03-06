@@ -2,14 +2,12 @@ package util
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
 	"github.com/doucol/clyde/internal/cmdContext"
-	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -52,6 +50,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	if err != nil {
 		return err
 	}
+
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, apiURL)
 
 	// Port mappings (local port: pod port)
@@ -77,7 +76,10 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	defer func() {
 		// Shutdown the port forwarding in case we've exited for some other reason
 		if !shutdown {
-			stopChan <- struct{}{}
+			select {
+			case stopChan <- struct{}{}:
+			default:
+			}
 		}
 	}()
 
@@ -89,21 +91,16 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	// Start the port forwarding
 	go func() {
 		if err := pf.ForwardPorts(); err != nil && !shutdown {
-			runtime.HandleError(err)
+			panic(err)
 		}
 	}()
 
 	// Wait for the port forwarding to be ready
 	<-readyChan
 
-	//
 	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
-	if err := ConsumeSSEStream(dc.ctx, sseURL, dc.catcher); err != nil {
-		if !shutdown || !errors.Is(err, io.ErrUnexpectedEOF) {
-			if !errors.Is(err, context.Canceled) {
-				return err
-			}
-		}
+	if err := ConsumeSSEStream(dc.ctx, sseURL, dc.catcher); err != nil && !shutdown {
+		return err
 	}
 
 	return nil
