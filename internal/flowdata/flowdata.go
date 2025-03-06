@@ -3,6 +3,7 @@ package flowdata
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -67,8 +68,12 @@ type FlowDataStore struct {
 	db *storm.DB
 }
 
+func dbPath() string {
+	return filepath.Join(util.GetDataPath(), "flowdata.db")
+}
+
 func NewFlowDataStore() (*FlowDataStore, error) {
-	dbPath := filepath.Join(util.GetDataPath(), "flowdata.db")
+	dbPath := dbPath()
 	db, err := storm.Open(dbPath)
 	if err != nil {
 		return nil, err
@@ -82,6 +87,14 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 		return nil, err
 	}
 	return &FlowDataStore{db: db}, nil
+}
+
+func Clear() error {
+	dbPath := dbPath()
+	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return os.Remove(dbPath)
 }
 
 func (fds *FlowDataStore) Close() {
