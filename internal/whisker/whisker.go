@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/doucol/clyde/internal/catcher"
 	"github.com/doucol/clyde/internal/flowdata"
-	"github.com/doucol/clyde/internal/util"
 )
 
 const (
@@ -34,7 +34,7 @@ func WatchFlows(ctx context.Context) error {
 		return fds.Add(fd)
 	}
 
-	dc := util.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
+	dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
 
 	// Go capture flows
 	wg.Add(1)

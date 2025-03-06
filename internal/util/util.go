@@ -1,14 +1,11 @@
 package util
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,53 +31,6 @@ func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace string, con
 	}
 
 	return "", "", fmt.Errorf("pod or env var name not found")
-}
-
-// ConsumeSSEStream connects to an SSE endpoint and processes events.
-func ConsumeSSEStream(ctx context.Context, url string, cb CatcherFunc) error {
-	// Create an HTTP GET request
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SSE stream: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check for a valid response
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	// Read the SSE stream line by line
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		select {
-		case <-ctx.Done():
-			return 0, nil, context.Canceled
-		default:
-			return bufio.ScanLines(data, atEOF)
-		}
-	})
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Skip comments or empty lines
-		if strings.HasPrefix(line, ":") || len(strings.TrimSpace(line)) == 0 {
-			continue
-		}
-
-		// Parse the event data
-		if strings.HasPrefix(line, "data:") {
-			data := strings.TrimPrefix(line, "data:")
-			data = strings.TrimSpace(data)
-			if err := cb(data); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Handle any errors during scanning
-	return scanner.Err()
 }
 
 func GetFreePort() (port int, err error) {

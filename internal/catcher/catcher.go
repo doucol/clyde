@@ -1,13 +1,16 @@
-package util
+package catcher
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/util"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -38,7 +41,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	config := cmdContext.K8sConfigFromContext(dc.ctx)
 
 	// URL for the portforward endpoint on the pod
-	podName, port, err := GetPodAndEnvVarWithContainerName(dc.ctx, dc.namespace, dc.containerName, dc.portEnvVarName)
+	podName, port, err := util.GetPodAndEnvVarWithContainerName(dc.ctx, dc.namespace, dc.containerName, dc.portEnvVarName)
 	if err != nil {
 		return err
 	}
@@ -54,7 +57,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, apiURL)
 
 	// Port mappings (local port: pod port)
-	freePort, err := GetFreePort()
+	freePort, err := util.GetFreePort()
 	if err != nil {
 		return err
 	}
@@ -97,9 +100,56 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	<-readyChan
 
 	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
-	if err := ConsumeSSEStream(dc.ctx, sseURL, dc.catcher); err != nil && !shutdown {
+	if err := dc.ConsumeSSEStream(sseURL); err != nil && !shutdown {
 		return err
 	}
 
 	return nil
+}
+
+// ConsumeSSEStream connects to an SSE endpoint and processes events.
+func (dc *DataCatcher) ConsumeSSEStream(url string) error {
+	// Create an HTTP GET request
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to SSE stream: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for a valid response
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	// Read the SSE stream line by line
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		select {
+		case <-dc.ctx.Done():
+			return 0, nil, context.Canceled
+		default:
+			return bufio.ScanLines(data, atEOF)
+		}
+	})
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Skip comments or empty lines
+		if strings.HasPrefix(line, ":") || len(strings.TrimSpace(line)) == 0 {
+			continue
+		}
+
+		// Parse the event data
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+			if err := dc.catcher(data); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Handle any errors during scanning
+	return scanner.Err()
 }
