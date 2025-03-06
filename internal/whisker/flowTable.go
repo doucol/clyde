@@ -132,13 +132,13 @@ func (fdt *flowDetailTable) GetCell(row, column int) *tview.TableCell {
 	if fd, ok := fdt.fds.GetFlowDetail(fdt.key, row); ok {
 		switch column {
 		case DTLCOL_START_TIME:
-			return tview.NewTableCell(fd.StartTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(fd.StartTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(0)
 		case DTLCOL_END_TIME:
-			return tview.NewTableCell(fd.EndTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(2)
+			return tview.NewTableCell(fd.EndTime.Format(time.RFC3339)).SetMaxWidth(1).SetExpansion(0)
 		case DTLCOL_SRC_LABELS:
-			return tview.NewTableCell(fd.SourceLabels).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(fd.SourceLabels).SetMaxWidth(1).SetExpansion(2)
 		case DTLCOL_DST_LABELS:
-			return tview.NewTableCell(fd.DestLabels).SetMaxWidth(1).SetExpansion(1)
+			return tview.NewTableCell(fd.DestLabels).SetMaxWidth(1).SetExpansion(2)
 		case DTLCOL_REPORTER:
 			return tview.NewTableCell(fd.Reporter).SetMaxWidth(1).SetExpansion(0)
 		case DTLCOL_PACK_IN:

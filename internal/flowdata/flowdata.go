@@ -215,6 +215,7 @@ func (fds *FlowDataStore) GetFlowDetail(key string, id int) (*FlowData, bool) {
 }
 
 func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
+	// TODO:: this is horrible - need to rewrite this soon
 	fs := &FlowSum{}
 	err := fds.db.One("Key", key, fs)
 	if err != nil {
