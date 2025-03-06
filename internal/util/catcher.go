@@ -75,11 +75,9 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 
 	defer func() {
 		// Shutdown the port forwarding in case we've exited for some other reason
-		if !shutdown {
-			select {
-			case stopChan <- struct{}{}:
-			default:
-			}
+		select {
+		case stopChan <- struct{}{}:
+		default:
 		}
 	}()
 
