@@ -15,4 +15,5 @@ var WatchCmd = &cobra.Command{
 
 func init() {
 	WatchCmd.AddCommand(WatchFlowsCmd)
+	WatchCmd.AddCommand(WatchClearCmd)
 }
