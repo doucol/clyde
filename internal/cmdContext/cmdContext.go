@@ -25,9 +25,9 @@ type CmdContext struct {
 }
 
 func (c *CmdContext) ToContext(ctx context.Context) context.Context {
-	ctx2, cancel := context.WithCancel(ctx)
+	newctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
-	return context.WithValue(ctx2, cmdContextKey, c)
+	return context.WithValue(newctx, cmdContextKey, c)
 }
 
 func (c *CmdContext) GetConfig() *rest.Config {

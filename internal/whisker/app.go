@@ -22,13 +22,13 @@ func NewFlowApp(ctx context.Context, fds *flowdata.FlowDataStore) *FlowApp {
 }
 
 func (fa *FlowApp) Run() error {
-	cc := cmdContext.CmdContextFromContext(fa.ctx)
+	cmdctx := cmdContext.CmdContextFromContext(fa.ctx)
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC {
-			go cc.Cancel()
-			go fa.app.Stop()
+			cmdctx.Cancel()
+			fa.app.Stop()
 			return nil
 		}
 		return event

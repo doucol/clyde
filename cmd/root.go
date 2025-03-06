@@ -39,15 +39,19 @@ func init() {
 func Execute() int {
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
-	cc := cmdContext.NewCmdContext(kubeConfig, kubeContext)
+	cmdctx := cmdContext.NewCmdContext(kubeConfig, kubeContext)
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		ctx := cc.ToContext(cmd.Context())
-		ncc := cmdContext.CmdContextFromContext(ctx)
+		// This new context contains our CmdContext, accessible from every cmd func
+		//   - the CmdContext also contains the Cancel func which in turn
+		//   calls 'cancel()' on the context triggering app shutdown everywhere
+		//   through the context <-Done() channel
+		newctx := cmdctx.ToContext(cmd.Context())
+		cmdctx := cmdContext.CmdContextFromContext(newctx)
 		go func() {
 			<-stopSignal
-			ncc.Cancel()
+			cmdctx.Cancel()
 		}()
-		cmd.SetContext(ctx)
+		cmd.SetContext(newctx)
 	}
 	if err := rootCmd.Execute(); err != nil {
 		return -1
