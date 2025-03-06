@@ -25,16 +25,13 @@ func WatchFlows(ctx context.Context) error {
 
 	flowApp := NewFlowApp(ctx, fds)
 
-	flowCatcher := func(data string) {
+	flowCatcher := func(data string) error {
 		var fr flowdata.FlowResponse
 		if err := json.Unmarshal([]byte(data), &fr); err != nil {
-			panic(err)
+			return err
 		}
 		fd := &flowdata.FlowData{FlowResponse: fr}
-		err := fds.Add(fd)
-		if err != nil {
-			panic(err)
-		}
+		return fds.Add(fd)
 	}
 
 	dc := util.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)

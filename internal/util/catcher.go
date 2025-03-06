@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-type CatcherFunc func(data string)
+type CatcherFunc func(data string) error
 
 type DataCatcher struct {
 	ctx            context.Context
