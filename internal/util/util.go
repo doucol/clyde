@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace string, containerName string, envVarName string) (string, string, error) {
+func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace, containerName, envVarName string) (string, string, error) {
 	clientset := cmdContext.ClientsetFromContext(ctx)
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -56,4 +57,11 @@ func GetDataPath() string {
 		panic(err)
 	}
 	return dataDir
+}
+
+func FileExists(fp string) bool {
+	if _, err := os.Stat(fp); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return true
 }

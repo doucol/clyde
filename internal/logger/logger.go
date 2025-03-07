@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,8 +24,8 @@ func logPath() string {
 }
 
 func New() (*LogStore, error) {
-	fp := logPath()
-	db, err := storm.Open(fp)
+	lp := logPath()
+	db, err := storm.Open(lp)
 	if err != nil {
 		return nil, err
 	}
@@ -38,17 +37,18 @@ func New() (*LogStore, error) {
 }
 
 func Clear() error {
-	fp := logPath()
-	if _, err := os.Stat(fp); errors.Is(err, os.ErrNotExist) {
-		return nil
+	lp := logPath()
+	if util.FileExists(lp) {
+		return os.Remove(lp)
 	}
-	return os.Remove(fp)
+	return nil
 }
 
 func (l *LogStore) Close() error {
 	return l.db.Close()
 }
 
+// [Writer] interface for logrus
 func (l *LogStore) Write(p []byte) (n int, err error) {
 	err = l.db.Save(&LogMsg{Message: string(p)})
 	if err != nil {
@@ -58,17 +58,11 @@ func (l *LogStore) Write(p []byte) (n int, err error) {
 }
 
 func (l *LogStore) Dump(w io.Writer) error {
-	if l.db == nil {
-		return nil
-	}
 	query := l.db.Select(q.Gte("ID", 1))
 	err := query.Each(new(LogMsg), func(o any) error {
 		lm := o.(*LogMsg)
 		_, err := w.Write([]byte(lm.Message))
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	})
 	return err
 }

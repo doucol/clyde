@@ -91,10 +91,10 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 
 func Clear() error {
 	dbPath := dbPath()
-	if _, err := os.Stat(dbPath); errors.Is(err, os.ErrNotExist) {
-		return nil
+	if util.FileExists(dbPath) {
+		return os.Remove(dbPath)
 	}
-	return os.Remove(dbPath)
+	return nil
 }
 
 func (fds *FlowDataStore) Close() {
