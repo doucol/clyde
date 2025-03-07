@@ -39,9 +39,9 @@ func init() {
 	}
 
 	// Add all global flags
-	rootCmd.PersistentFlags().StringVar(&kubeConfig, "kubeconfig", dflt, "absolute path to the kubeconfig file")
-	rootCmd.PersistentFlags().StringVar(&kubeContext, "kubecontext", "", "(optional) kubeconfig context to use")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "loglevel", "error", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVarP(&kubeConfig, "kubeconfig", "k", dflt, "absolute path to the kubeconfig file")
+	rootCmd.PersistentFlags().StringVarP(&kubeContext, "kubecontext", "c", "", "(optional) kubeconfig context to use")
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "loglevel", "l", "error", "log level (debug, info, warn, error)")
 
 	// Add all root commands
 	rootCmd.AddCommand(watch.WatchCmd, aboutCmd, versionCmd)
