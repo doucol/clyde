@@ -89,6 +89,9 @@ func Execute() int {
 		log.SetOutput(ls)
 	}
 	defer func() {
+		if ls == nil {
+			return
+		}
 		err := ls.Dump(os.Stderr)
 		if err != nil {
 			panic(err)
