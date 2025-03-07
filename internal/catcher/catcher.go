@@ -11,6 +11,7 @@ import (
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/util"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
@@ -109,19 +110,16 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
 func (dc *DataCatcher) ConsumeSSEStream(url string) error {
-	// Create an HTTP GET request
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SSE stream: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check for a valid response
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Read the SSE stream line by line
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		select {
@@ -132,21 +130,20 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 		}
 	})
 
+	// Read the SSE stream line by line
 	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Skip comments or empty lines
-		if strings.HasPrefix(line, ":") || len(strings.TrimSpace(line)) == 0 {
-			continue
-		}
+		line := strings.TrimSpace(scanner.Text())
 
 		// Parse the event data
 		if strings.HasPrefix(line, "data:") {
+			log.Tracef("Stream data received: %s", line)
 			data := strings.TrimPrefix(line, "data:")
 			data = strings.TrimSpace(data)
 			if err := dc.catcher(data); err != nil {
 				return err
 			}
+		} else if line != "" {
+			log.Warnf("SSE stream data discarded: %s", line)
 		}
 	}
 

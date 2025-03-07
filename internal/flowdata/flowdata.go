@@ -106,7 +106,8 @@ func flowSumKey(fd *FlowData) string {
 }
 
 func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
-	if fs.Key == "" {
+	if fs == nil {
+		fs = &FlowSum{}
 		fs.Key = key
 		fs.StartTime = fd.StartTime
 		fs.EndTime = fd.EndTime
@@ -157,8 +158,12 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 		}
 	}()
 	err = tx.One("Key", key, fs)
-	if err != nil && !errors.Is(err, storm.ErrNotFound) {
-		return err
+	if err != nil {
+		if errors.Is(err, storm.ErrNotFound) {
+			fs = nil
+		} else {
+			return err
+		}
 	}
 	fs = toSum(key, fd, fs)
 	err = tx.Save(fs)
