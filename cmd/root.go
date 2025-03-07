@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/doucol/clyde/cmd/watch"
 	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/logger"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/util/homedir"
 )
@@ -21,7 +24,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var kubeConfig, kubeContext string
+var (
+	ls                                *logger.LogStore
+	kubeConfig, kubeContext, logLevel string
+)
 
 func init() {
 	dflt := ""
@@ -31,8 +37,13 @@ func init() {
 	if kcev := os.Getenv("KUBECONFIG"); kcev != "" {
 		dflt = kcev
 	}
+
+	// Add all global flags
 	rootCmd.PersistentFlags().StringVar(&kubeConfig, "kubeconfig", dflt, "absolute path to the kubeconfig file")
 	rootCmd.PersistentFlags().StringVar(&kubeContext, "kubecontext", "", "(optional) kubeconfig context to use")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "logLevel", "info", "log level (debug, info, warn, error)")
+
+	// Add all root commands
 	rootCmd.AddCommand(watch.WatchCmd, aboutCmd, versionCmd)
 }
 
@@ -52,7 +63,41 @@ func Execute() int {
 			cmdctx.Cancel()
 		}()
 		cmd.SetContext(newctx)
+
+		switch logLevel {
+		case "debug":
+			log.SetLevel(log.DebugLevel)
+		case "info":
+			log.SetLevel(log.InfoLevel)
+		case "warn":
+			log.SetLevel(log.WarnLevel)
+		case "error":
+			log.SetLevel(log.ErrorLevel)
+		default:
+			panic(errors.New("invalid log level"))
+		}
+
+		err := logger.Clear()
+		if err != nil {
+			panic(err)
+		}
+
+		ls, err = logger.New()
+		if err != nil {
+			panic(err)
+		}
+		log.SetOutput(ls)
 	}
+	defer func() {
+		err := ls.Dump(os.Stderr)
+		if err != nil {
+			panic(err)
+		}
+		err = ls.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	if err := rootCmd.Execute(); err != nil {
 		return -1
 	}

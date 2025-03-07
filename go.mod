@@ -6,6 +6,7 @@ require (
 	github.com/asdine/storm/v3 v3.2.1
 	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/rivo/tview v0.0.0-20241227133733-17b7edb88c57
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	k8s.io/api v0.32.2
 	k8s.io/apimachinery v0.32.2

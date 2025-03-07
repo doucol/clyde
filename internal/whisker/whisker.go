@@ -7,6 +7,7 @@ import (
 
 	"github.com/doucol/clyde/internal/catcher"
 	"github.com/doucol/clyde/internal/flowdata"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -43,6 +44,7 @@ func WatchFlows(ctx context.Context) error {
 		if err := dc.CatchDataFromSSEStream(); err != nil {
 			panic(err)
 		}
+		log.Debug("exiting data capture routine")
 	}()
 
 	// Go run the flow watcher app
@@ -52,6 +54,7 @@ func WatchFlows(ctx context.Context) error {
 		if err := flowApp.Run(); err != nil {
 			panic(err)
 		}
+		log.Debug("exiting flow watcher app")
 	}()
 
 	// Wait for both goroutines to finish
