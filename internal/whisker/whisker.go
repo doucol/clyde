@@ -3,7 +3,9 @@ package whisker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/doucol/clyde/internal/catcher"
 	"github.com/doucol/clyde/internal/flowdata"
@@ -41,10 +43,23 @@ func WatchFlows(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := dc.CatchDataFromSSEStream(); err != nil {
-			panic(err)
+		defer flowApp.Stop()
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		var lastError error
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := dc.CatchDataFromSSEStream(); err != nil {
+					if !errors.Is(err, lastError) {
+						lastError = err
+						log.Errorf("error: %s", err.Error())
+					}
+				}
+			}
 		}
-		log.Debug("exiting data capture routine")
 	}()
 
 	// Go run the flow watcher app

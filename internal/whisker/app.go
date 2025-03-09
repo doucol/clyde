@@ -12,23 +12,25 @@ import (
 )
 
 type FlowApp struct {
-	ctx context.Context
-	app *tview.Application
-	fds *flowdata.FlowDataStore
+	ctx     context.Context
+	app     *tview.Application
+	fds     *flowdata.FlowDataStore
+	stopped bool
 }
 
 func NewFlowApp(ctx context.Context, fds *flowdata.FlowDataStore) *FlowApp {
-	return &FlowApp{ctx, tview.NewApplication(), fds}
+	return &FlowApp{ctx, tview.NewApplication(), fds, false}
 }
 
 func (fa *FlowApp) Run() error {
+	defer fa.Stop()
 	cmdctx := cmdContext.CmdContextFromContext(fa.ctx)
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC {
+			fa.Stop()
 			cmdctx.Cancel()
-			fa.app.Stop()
 			return nil
 		}
 		return event
@@ -41,6 +43,7 @@ func (fa *FlowApp) Run() error {
 		for {
 			select {
 			case <-fa.ctx.Done():
+				fa.Stop()
 				return
 			case <-ticker.C:
 				fa.app.Draw()
@@ -61,6 +64,13 @@ func concatCells(td *tview.Table, row int, sep string, cols ...int) string {
 		s = append(s, strings.TrimSpace(td.GetCell(row, cols[i]).Text))
 	}
 	return strings.Join(s, sep)
+}
+
+func (fa *FlowApp) Stop() {
+	if fa.app != nil && !fa.stopped {
+		fa.stopped = true
+		fa.app.Stop()
+	}
 }
 
 func (fa *FlowApp) ViewSummary(selectRow int) *tview.Application {
