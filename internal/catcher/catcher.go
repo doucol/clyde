@@ -107,7 +107,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 
 	// Start the port forwarding
 	go func() {
-		log.Debugf("Starting port forward from %s/%s port %s to localhost:%d", dc.namespace, podName, port, freePort)
+		log.Debugf("Starting port forward from localhost:%d to %s/%s:%s", freePort, dc.namespace, podName, port)
 		if err := pf.ForwardPorts(); err != nil && !shutdown {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
 		}
