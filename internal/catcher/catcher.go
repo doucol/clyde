@@ -39,6 +39,20 @@ func NewDataCatcher(ctx context.Context, namespace, containerName, portEnvVarNam
 	}
 }
 
+type pfOut struct{}
+
+func (l pfOut) Write(bytes []byte) (int, error) {
+	log.Debugf("portforward stdout: %s", string(bytes))
+	return len(bytes), nil
+}
+
+type pfErr struct{}
+
+func (l pfErr) Write(bytes []byte) (int, error) {
+	log.Debugf("portforward stderr: %s", string(bytes))
+	return len(bytes), nil
+}
+
 func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	config := cmdContext.K8sConfigFromContext(dc.ctx)
 
@@ -86,15 +100,16 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		}
 	}()
 
-	pf, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
+	pf, err := portforward.New(dialer, ports, stopChan, readyChan, pfOut{}, pfErr{})
 	if err != nil {
 		return err
 	}
 
 	// Start the port forwarding
 	go func() {
+		log.Debugf("Starting port forward from %s/%s port %s to localhost:%d", dc.namespace, podName, port, freePort)
 		if err := pf.ForwardPorts(); err != nil && !shutdown {
-			panic(err)
+			log.Debugf("error: ForwardPorts return error: %s", err.Error())
 		}
 	}()
 
