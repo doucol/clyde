@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/q"
@@ -17,6 +18,7 @@ type LogMsg struct {
 
 type LogStore struct {
 	db *storm.DB
+	mu sync.Mutex
 }
 
 func logPath() string {
@@ -48,8 +50,10 @@ func (l *LogStore) Close() error {
 	return l.db.Close()
 }
 
-// [Writer] interface for logrus
+// [Writer] interface
 func (l *LogStore) Write(p []byte) (n int, err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	err = l.db.Save(&LogMsg{Message: string(p)})
 	if err != nil {
 		return 0, err

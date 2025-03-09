@@ -3,6 +3,7 @@ package catcher
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -124,7 +125,7 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		select {
 		case <-dc.ctx.Done():
-			return 0, nil, context.Canceled
+			return 0, nil, io.EOF
 		default:
 			return bufio.ScanLines(data, atEOF)
 		}
@@ -143,10 +144,15 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 				return err
 			}
 		} else if line != "" {
-			log.Warnf("SSE stream data discarded: %s", line)
+			log.Debugf("SSE stream data discarded: %s", line)
+			return nil
 		}
 	}
 
 	// Handle any errors during scanning
-	return scanner.Err()
+	err = scanner.Err()
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }

@@ -44,20 +44,21 @@ func WatchFlows(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		defer flowApp.Stop()
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
+		ticker := time.Tick(2 * time.Second)
 		var lastError error
 		for {
+			if err := dc.CatchDataFromSSEStream(); err != nil {
+				// Don't keep logging the same error
+				if !errors.Is(err, lastError) {
+					lastError = err
+					log.Debugf("error: %s", err.Error())
+				}
+			}
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				if err := dc.CatchDataFromSSEStream(); err != nil {
-					if !errors.Is(err, lastError) {
-						lastError = err
-						log.Errorf("error: %s", err.Error())
-					}
-				}
+			case <-ticker:
+				continue
 			}
 		}
 	}()

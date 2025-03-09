@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -10,9 +11,10 @@ import (
 	"github.com/doucol/clyde/cmd/watch"
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/logger"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -76,13 +78,13 @@ func Execute() int {
 func initLogger() {
 	switch logLevel {
 	case "debug":
-		log.SetLevel(log.DebugLevel)
+		logrus.SetLevel(logrus.DebugLevel)
 	case "info":
-		log.SetLevel(log.InfoLevel)
+		logrus.SetLevel(logrus.InfoLevel)
 	case "warn":
-		log.SetLevel(log.WarnLevel)
+		logrus.SetLevel(logrus.WarnLevel)
 	case "error":
-		log.SetLevel(log.ErrorLevel)
+		logrus.SetLevel(logrus.ErrorLevel)
 	default:
 		panic(errors.New("invalid log level: " + logLevel))
 	}
@@ -98,7 +100,9 @@ func initLogger() {
 		panic(err)
 	}
 	log.SetOutput(logStore)
-	log.Infof("Logger initialized. Log level set to '%s'", logLevel)
+	klog.SetOutput(logStore)
+	logrus.SetOutput(logStore)
+	logrus.Infof("Logger initialized. Log level set to '%s'", logLevel)
 }
 
 func dumpLogger() {
