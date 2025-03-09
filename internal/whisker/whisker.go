@@ -66,6 +66,7 @@ func WatchFlows(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer flowApp.Stop()
 		if err := flowApp.Run(); err != nil {
 			panic(err)
 		}
