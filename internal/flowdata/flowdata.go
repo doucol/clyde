@@ -101,7 +101,7 @@ func (fds *FlowDataStore) Close() {
 	runtime.HandleError(fds.db.Close())
 }
 
-func flowSumKey(fd *FlowData) string {
+func (fd *FlowData) Key() string {
 	return fmt.Sprintf("%s|%s|%s|%s|%s|%d", fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fd.DestPort)
 }
 
@@ -143,13 +143,13 @@ func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
 	return fs
 }
 
-func (fds *FlowDataStore) Add(fd *FlowData) error {
-	inTx, commit := false, false
-	key := flowSumKey(fd)
+func (fds *FlowDataStore) Add(fd *FlowData) (*FlowSum, bool, error) {
+	newSum, inTx, commit := false, false, false
+	key := fd.Key()
 	fs := &FlowSum{}
 	tx, err := fds.db.Begin(true)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	inTx = true
 	defer func() {
@@ -160,27 +160,28 @@ func (fds *FlowDataStore) Add(fd *FlowData) error {
 	err = tx.One("Key", key, fs)
 	if err != nil {
 		if errors.Is(err, storm.ErrNotFound) {
+			newSum = true
 			fs = nil
 		} else {
-			return err
+			return nil, false, err
 		}
 	}
 	fs = toSum(key, fd, fs)
 	err = tx.Save(fs)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	fd.SumID = fs.ID
 	err = tx.Save(fd)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	commit = true
-	return nil
+	return fs, newSum, nil
 }
 
 func (fds *FlowDataStore) GetFlowSum(id int) (*FlowSum, bool) {

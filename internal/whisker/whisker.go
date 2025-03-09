@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,7 +35,16 @@ func WatchFlows(ctx context.Context) error {
 			return err
 		}
 		fd := &flowdata.FlowData{FlowResponse: fr}
-		return fds.Add(fd)
+		fs, newSum, err := fds.Add(fd)
+		if err != nil {
+			panic(fmt.Errorf("error adding flow data: %v", err.Error()))
+		}
+		if newSum {
+			log.Debugf("added flow data: new flow sum: %s", fs.Key)
+		} else {
+			log.Debugf("added flow data: existing flow sum: %s", fs.Key)
+		}
+		return nil
 	}
 
 	dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
