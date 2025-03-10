@@ -38,24 +38,39 @@ func (fa *FlowApp) Run() error {
 
 	// Go update screen periodically until we're shutdown
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
+		ticker := time.Tick(2 * time.Second)
 		for {
 			select {
 			case <-fa.ctx.Done():
 				fa.Stop()
 				return
-			case <-ticker.C:
+			case <-ticker:
 				fa.app.Draw()
 			}
 		}
 	}()
+
+	fa.setTheme()
 
 	// Start with a summary view
 	if err := fa.ViewSummary(0).Run(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (fa *FlowApp) setTheme() {
+	tview.Styles.PrimitiveBackgroundColor = tcell.ColorBlack
+	tview.Styles.ContrastBackgroundColor = tcell.ColorBlack
+	tview.Styles.MoreContrastBackgroundColor = tcell.ColorBlack
+	tview.Styles.PrimaryTextColor = tcell.ColorWhite
+	tview.Styles.BorderColor = tcell.ColorBlue
+	tview.Styles.TitleColor = tcell.ColorWhite
+	tview.Styles.GraphicsColor = tcell.ColorWhite
+	tview.Styles.SecondaryTextColor = tcell.ColorWhite
+	tview.Styles.TertiaryTextColor = tcell.ColorWhite
+	tview.Styles.InverseTextColor = tcell.ColorWhite
+	tview.Styles.ContrastSecondaryTextColor = tcell.ColorWhite
 }
 
 func concatCells(td *tview.Table, row int, sep string, cols ...int) string {
@@ -94,6 +109,7 @@ func (fa *FlowApp) ViewSummary(selectRow int) *tview.Application {
 		tableData.Select(selectRow, 0)
 	})
 
+	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary")
 	flex.AddItem(tableData, 0, 1, true)
@@ -116,6 +132,7 @@ func (fa *FlowApp) ViewDetail(row int, key string) *tview.Application {
 		return event
 	})
 
+	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
 	flex.AddItem(tableDataHeader, 6, 1, false)
