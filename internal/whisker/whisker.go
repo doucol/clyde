@@ -61,13 +61,15 @@ func WatchFlows(ctx context.Context) error {
 				// Don't keep logging the same error
 				if !errors.Is(err, lastError) {
 					lastError = err
-					log.Debugf("error: %s", err.Error())
+					log.Debugf("error in flow catcher: %s", err.Error())
 				}
 			}
 			select {
 			case <-ctx.Done():
+				log.Debug("exiting flow catcher routine: done signal received")
 				return
 			case <-ticker:
+				log.Debug("restarting the flow catcher")
 				continue
 			}
 		}
@@ -81,10 +83,11 @@ func WatchFlows(ctx context.Context) error {
 		if err := flowApp.Run(); err != nil {
 			panic(err)
 		}
-		log.Debug("exiting flow watcher app")
+		log.Debug("exiting flow watcher tui app")
 	}()
 
 	// Wait for both goroutines to finish
 	wg.Wait()
+	log.Debug("exiting watch flows")
 	return nil
 }

@@ -54,6 +54,28 @@ func (l pfErr) Write(bytes []byte) (int, error) {
 }
 
 func (dc *DataCatcher) CatchDataFromSSEStream() error {
+	select {
+	case <-dc.ctx.Done():
+		log.Debug("done signal received - not entering CatchDataFromSSEStream")
+		return nil
+	default:
+	}
+	log.Debug("entering flow catcher")
+
+	// Channels for signaling
+	stopChan := make(chan struct{}, 1)
+	readyChan := make(chan struct{})
+
+	shutdown := false
+	go func() {
+		// Shutdown the port forwarding when the context is done
+		// This will force the ConsumeSSEStream to exit below
+		<-dc.ctx.Done()
+		log.Debug("done signal received - sending signal to shutdown port foward")
+		shutdown = true
+		stopChan <- struct{}{}
+	}()
+
 	config := cmdContext.K8sConfigFromContext(dc.ctx)
 
 	// URL for the portforward endpoint on the pod
@@ -79,25 +101,13 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	}
 	ports := []string{fmt.Sprintf("%d:%s", freePort, port)}
 
-	// Channels for signaling
-	stopChan := make(chan struct{}, 1)
-	readyChan := make(chan struct{})
-
-	shutdown := false
-	go func() {
-		// Shutdown the port forwarding when the context is done
-		// This will force the ConsumeSSEStream to exit below
-		<-dc.ctx.Done()
-		shutdown = true
-		stopChan <- struct{}{}
-	}()
-
 	defer func() {
 		// Shutdown the port forwarding in case we've exited for some other reason
 		select {
 		case stopChan <- struct{}{}:
 		default:
 		}
+		log.Debug("exiting flow catcher")
 	}()
 
 	pf, err := portforward.New(dialer, ports, stopChan, readyChan, pfOut{}, pfErr{})
@@ -111,6 +121,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		if err := pf.ForwardPorts(); err != nil && !shutdown {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
 		}
+		log.Debug("port forward has stopped")
 	}()
 
 	// Wait for the port forwarding to be ready
@@ -140,6 +151,7 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		select {
 		case <-dc.ctx.Done():
+			log.Debug("done signal received: in split func - sending back EOF")
 			return 0, nil, io.EOF
 		default:
 			return bufio.ScanLines(data, atEOF)
@@ -166,8 +178,12 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 
 	// Handle any errors during scanning
 	err = scanner.Err()
-	if err != nil && !errors.Is(err, io.EOF) {
-		return err
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			log.Debug("EOF received from scanner in ConsumeSSEStream, exiting now")
+		} else {
+			return err
+		}
 	}
 	return nil
 }

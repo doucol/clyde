@@ -9,6 +9,7 @@ import (
 	"github.com/doucol/clyde/internal/flowdata"
 	tcell "github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	log "github.com/sirupsen/logrus"
 )
 
 type FlowApp struct {
@@ -42,6 +43,7 @@ func (fa *FlowApp) Run() error {
 		for {
 			select {
 			case <-fa.ctx.Done():
+				log.Debugf("flowApp shutting down: done signal received")
 				fa.Stop()
 				return
 			case <-ticker:
