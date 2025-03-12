@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/doucol/clyde/internal/util"
@@ -124,7 +125,7 @@ func toSum(key string, fd *FlowData, fs *FlowSum) *FlowSum {
 	fs.DestLabels = fd.DestLabels
 	fs.Protocol = fd.Protocol
 	fs.DestPort = fd.DestPort
-	switch fd.Reporter {
+	switch strings.ToLower(fd.Reporter) {
 	case "src":
 		fs.SourceReports += 1
 		fs.SourcePacketsIn += uint64(fd.PacketsIn)

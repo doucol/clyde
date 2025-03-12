@@ -40,9 +40,9 @@ func WatchFlows(ctx context.Context) error {
 			panic(fmt.Errorf("error adding flow data: %v", err.Error()))
 		}
 		if newSum {
-			log.Debugf("added flow data: new flow sum: %s", fs.Key)
+			log.Tracef("added flow data: new flow sum: %s", fs.Key)
 		} else {
-			log.Debugf("added flow data: existing flow sum: %s", fs.Key)
+			log.Tracef("added flow data: existing flow sum: %s", fs.Key)
 		}
 		return nil
 	}

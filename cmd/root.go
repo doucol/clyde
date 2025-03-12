@@ -43,7 +43,7 @@ func init() {
 	// Add all global flags
 	rootCmd.PersistentFlags().StringVar(&kubeConfig, "kubeconfig", dflt, "absolute path to the kubeconfig file")
 	rootCmd.PersistentFlags().StringVar(&kubeContext, "kubecontext", "", "(optional) kubeconfig context to use")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "loglevel", "warn", "log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "loglevel", "warn", "log level (trace, debug, info, warn, error)")
 
 	// Add all root commands
 	rootCmd.AddCommand(watch.WatchCmd, aboutCmd, versionCmd)
@@ -77,6 +77,8 @@ func Execute() int {
 
 func initLogger() {
 	switch logLevel {
+	case "trace":
+		logrus.SetLevel(logrus.TraceLevel)
 	case "debug":
 		logrus.SetLevel(logrus.DebugLevel)
 	case "info":
