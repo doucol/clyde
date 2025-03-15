@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,6 +19,7 @@ const (
 )
 
 func WatchFlows(ctx context.Context) error {
+	// cctx := cmdContext.CmdContextFromContext(ctx)
 	wg := sync.WaitGroup{}
 	fds, err := flowdata.NewFlowDataStore()
 	if err != nil {
@@ -32,22 +32,20 @@ func WatchFlows(ctx context.Context) error {
 	flowCatcher := func(data string) error {
 		var fr flowdata.FlowResponse
 		if err := json.Unmarshal([]byte(data), &fr); err != nil {
-			return err
+			log.Panicf("error unmarshalling flow data: %v", err)
 		}
 		fd := &flowdata.FlowData{FlowResponse: fr}
 		fs, newSum, err := fds.Add(fd)
 		if err != nil {
-			panic(fmt.Errorf("error adding flow data: %v", err.Error()))
+			log.Panicf("error adding flow data: %v", err)
 		}
 		if newSum {
-			log.Tracef("added flow data: new flow sum: %s", fs.Key)
+			log.Debugf("added flow data: new flow sum: %s", fs.Key)
 		} else {
-			log.Tracef("added flow data: existing flow sum: %s", fs.Key)
+			log.Debugf("added flow data: existing flow sum: %s", fs.Key)
 		}
 		return nil
 	}
-
-	dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
 
 	// Go capture flows
 	wg.Add(1)
@@ -57,6 +55,7 @@ func WatchFlows(ctx context.Context) error {
 		ticker := time.Tick(2 * time.Second)
 		var lastError error
 		for {
+			dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
 			if err := dc.CatchDataFromSSEStream(); err != nil {
 				// Don't keep logging the same error
 				if !errors.Is(err, lastError) {
@@ -81,7 +80,7 @@ func WatchFlows(ctx context.Context) error {
 		defer wg.Done()
 		defer flowApp.Stop()
 		if err := flowApp.Run(); err != nil {
-			panic(err)
+			log.Panicf("error running flow app: %v", err)
 		}
 		log.Debug("exiting flow watcher tui app")
 	}()

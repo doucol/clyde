@@ -11,6 +11,8 @@ import (
 	"github.com/doucol/clyde/internal/util"
 )
 
+var debugLog = os.Getenv("DEBUG_LOG") != ""
+
 type LogMsg struct {
 	ID      int    `json:"id" storm:"id,increment"`
 	Message string `json:"message"`
@@ -54,6 +56,9 @@ func (l *LogStore) Close() error {
 func (l *LogStore) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if debugLog {
+		return os.Stderr.Write(p)
+	}
 	err = l.db.Save(&LogMsg{Message: string(p)})
 	if err != nil {
 		return 0, err

@@ -53,6 +53,19 @@ func (l pfErr) Write(bytes []byte) (int, error) {
 	return len(bytes), nil
 }
 
+func safeCloseChan(ch ...chan struct{}) {
+	for _, c := range ch {
+		select {
+		case _, ok := <-c:
+			if ok {
+				close(c)
+			}
+		default:
+			close(c)
+		}
+	}
+}
+
 func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	select {
 	case <-dc.ctx.Done():
@@ -61,20 +74,6 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	default:
 	}
 	log.Debug("entering flow catcher")
-
-	// Channels for signaling
-	stopChan := make(chan struct{}, 1)
-	readyChan := make(chan struct{})
-
-	shutdown := false
-	go func() {
-		// Shutdown the port forwarding when the context is done
-		// This will force the ConsumeSSEStream to exit below
-		<-dc.ctx.Done()
-		log.Debug("done signal received - sending signal to shutdown port foward")
-		shutdown = true
-		stopChan <- struct{}{}
-	}()
 
 	config := cmdContext.K8sConfigFromContext(dc.ctx)
 
@@ -87,6 +86,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	apiURL, _ := url.Parse(fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", config.Host, dc.namespace, podName))
 
 	// Dialer for establishing the connection
+	log.Debugf("apiURL: %s", apiURL)
 	transport, upgrader, err := spdy.RoundTripperFor(config)
 	if err != nil {
 		return err
@@ -101,12 +101,18 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	}
 	ports := []string{fmt.Sprintf("%d:%s", freePort, port)}
 
+	// Channels for signaling
+	stopChan := make(chan struct{}, 5)
+	readyChan := make(chan struct{})
+	pfDone := make(chan struct{})
+
 	defer func() {
 		// Shutdown the port forwarding in case we've exited for some other reason
 		select {
 		case stopChan <- struct{}{}:
 		default:
 		}
+		safeCloseChan(stopChan, readyChan, pfDone)
 		log.Debug("exiting flow catcher")
 	}()
 
@@ -115,8 +121,24 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		return err
 	}
 
+	shutdown := false
+	go func() {
+		// Shutdown the port forwarding when the context is done
+		// This will force the ConsumeSSEStream to exit below
+		select {
+		case <-dc.ctx.Done():
+			shutdown = true
+			stopChan <- struct{}{}
+			log.Debug("done signal received - sending signal to shutdown port foward")
+		case <-stopChan:
+			stopChan <- struct{}{}
+			log.Debug("stop channel signaled, exiting goroutine")
+		}
+	}()
+
 	// Start the port forwarding
 	go func() {
+		defer close(pfDone)
 		log.Debugf("Starting port forward from localhost:%d to %s/%s:%s", freePort, dc.namespace, podName, port)
 		if err := pf.ForwardPorts(); err != nil && !shutdown {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
@@ -128,11 +150,17 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	<-readyChan
 
 	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
-	if err := dc.ConsumeSSEStream(sseURL); err != nil && !shutdown {
-		return err
+	if err := dc.ConsumeSSEStream(sseURL); err != nil {
+		if shutdown {
+			err = nil
+		}
 	}
 
-	return nil
+	log.Debug("waiting for port forward to stop")
+	stopChan <- struct{}{}
+	<-pfDone
+	log.Debug("port forwarding is done, now exiting CatchDataFromSSEStream")
+	return err
 }
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
