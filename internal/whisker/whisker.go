@@ -70,6 +70,7 @@ func WatchFlows(ctx context.Context) error {
 			case <-ticker:
 				select {
 				case <-ctx.Done():
+					// If we are already done, don't restart the flow catcher
 					return
 				default:
 					log.Debug("restarting the flow catcher")
