@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/doucol/clyde/internal/cmdContext"
 	"github.com/doucol/clyde/internal/util"
@@ -53,19 +55,6 @@ func (l pfErr) Write(bytes []byte) (int, error) {
 	return len(bytes), nil
 }
 
-func safeCloseChan(ch ...chan struct{}) {
-	for _, c := range ch {
-		select {
-		case _, ok := <-c:
-			if ok {
-				close(c)
-			}
-		default:
-			close(c)
-		}
-	}
-}
-
 func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	select {
 	case <-dc.ctx.Done():
@@ -102,18 +91,12 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	ports := []string{fmt.Sprintf("%d:%s", freePort, port)}
 
 	// Channels for signaling
-	stopChan := make(chan struct{}, 5)
+	stopChan := make(chan struct{}, 20)
 	readyChan := make(chan struct{})
-	pfDone := make(chan struct{})
 
 	defer func() {
-		// Shutdown the port forwarding in case we've exited for some other reason
-		select {
-		case stopChan <- struct{}{}:
-		default:
-		}
-		safeCloseChan(stopChan, readyChan, pfDone)
-		log.Debug("exiting flow catcher")
+		util.ChanClose(stopChan, readyChan)
+		log.Debug("exited flow catcher")
 	}()
 
 	pf, err := portforward.New(dialer, ports, stopChan, readyChan, pfOut{}, pfErr{})
@@ -121,50 +104,52 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		return err
 	}
 
-	shutdown := false
-	go func() {
-		// Shutdown the port forwarding when the context is done
-		// This will force the ConsumeSSEStream to exit below
-		select {
-		case <-dc.ctx.Done():
-			shutdown = true
-			stopChan <- struct{}{}
-			log.Debug("done signal received - sending signal to shutdown port foward")
-		case <-stopChan:
-			stopChan <- struct{}{}
-			log.Debug("stop channel signaled, exiting goroutine")
-		}
-	}()
+	wg := sync.WaitGroup{}
 
 	// Start the port forwarding
+	wg.Add(1)
 	go func() {
-		defer close(pfDone)
+		defer wg.Done()
+		defer util.ChanSendZeroedVals(stopChan, 2)
 		log.Debugf("Starting port forward from localhost:%d to %s/%s:%s", freePort, dc.namespace, podName, port)
-		if err := pf.ForwardPorts(); err != nil && !shutdown {
+		if err := pf.ForwardPorts(); err != nil {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
 		}
 		log.Debug("port forward has stopped")
 	}()
 
-	// Wait for the port forwarding to be ready
-	<-readyChan
-
-	sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
-	if err := dc.ConsumeSSEStream(sseURL); err != nil {
-		if shutdown {
-			err = nil
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer util.ChanSendZeroedVals(stopChan, 2)
+		select {
+		case <-readyChan:
+			// Wait for the port forwarding to be ready
+			sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
+			if err := dc.ConsumeSSEStream(sseURL, stopChan); err != nil {
+				log.Debugf("error: ConsumeSSEStream return error: %s", err.Error())
+			}
+		case <-time.After(2 * time.Second):
+			log.Debug("timeout waiting for port forward to be ready")
 		}
+	}()
+
+	select {
+	case <-dc.ctx.Done():
+		util.ChanSendZeroedVals(stopChan, 2)
+		log.Debug("done signal received - sending signal to shutdown port foward")
+	case <-stopChan:
+		util.ChanSendZeroedVals(stopChan, 2)
+		log.Debug("stop channel signaled, exiting goroutine")
 	}
 
-	log.Debug("waiting for port forward to stop")
-	stopChan <- struct{}{}
-	<-pfDone
-	log.Debug("port forwarding is done, now exiting CatchDataFromSSEStream")
-	return err
+	wg.Wait()
+	log.Debug("all goroutines have exited, now exiting flow catcher")
+	return nil
 }
 
 // ConsumeSSEStream connects to an SSE endpoint and processes events.
-func (dc *DataCatcher) ConsumeSSEStream(url string) error {
+func (dc *DataCatcher) ConsumeSSEStream(url string, stopChan chan struct{}) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SSE stream: %w", err)
@@ -178,6 +163,9 @@ func (dc *DataCatcher) ConsumeSSEStream(url string) error {
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		select {
+		case <-stopChan:
+			log.Debug("stop signal received: in split func - sending back EOF")
+			return 0, nil, io.EOF
 		case <-dc.ctx.Done():
 			log.Debug("done signal received: in split func - sending back EOF")
 			return 0, nil, io.EOF

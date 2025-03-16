@@ -68,8 +68,13 @@ func WatchFlows(ctx context.Context) error {
 				log.Debug("exiting flow catcher routine: done signal received")
 				return
 			case <-ticker:
-				log.Debug("restarting the flow catcher")
-				continue
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					log.Debug("restarting the flow catcher")
+					continue
+				}
 			}
 		}
 	}()
