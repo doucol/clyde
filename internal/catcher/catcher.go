@@ -19,28 +19,6 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
-type CatcherFunc func(data string) error
-
-type DataCatcher struct {
-	ctx            context.Context
-	catcher        CatcherFunc
-	namespace      string
-	containerName  string
-	portEnvVarName string
-	urlPath        string
-}
-
-func NewDataCatcher(ctx context.Context, namespace, containerName, portEnvVarName, urlPath string, catcher CatcherFunc) *DataCatcher {
-	return &DataCatcher{
-		ctx:            ctx,
-		namespace:      namespace,
-		containerName:  containerName,
-		portEnvVarName: portEnvVarName,
-		urlPath:        urlPath,
-		catcher:        catcher,
-	}
-}
-
 type pfOut struct{}
 
 func (l pfOut) Write(bytes []byte) (int, error) {
@@ -55,19 +33,41 @@ func (l pfErr) Write(bytes []byte) (int, error) {
 	return len(bytes), nil
 }
 
+type CatcherFunc func(data string) error
+
+type DataCatcher struct {
+	ctx            context.Context
+	catcher        CatcherFunc
+	namespace      string
+	containerName  string
+	urlPath        string
+	PortEnvVarName string
+}
+
+func NewDataCatcher(ctx context.Context, namespace, containerName, urlPath string, catcher CatcherFunc) *DataCatcher {
+	return &DataCatcher{
+		ctx:            ctx,
+		namespace:      namespace,
+		containerName:  containerName,
+		urlPath:        urlPath,
+		catcher:        catcher,
+		PortEnvVarName: "PORT",
+	}
+}
+
 func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	select {
 	case <-dc.ctx.Done():
 		log.Debug("done signal received - not entering CatchDataFromSSEStream")
 		return nil
 	default:
+		log.Debug("entering flow catcher")
 	}
-	log.Debug("entering flow catcher")
 
 	config := cmdContext.K8sConfigFromContext(dc.ctx)
 
 	// URL for the portforward endpoint on the pod
-	podName, port, err := util.GetPodAndEnvVarWithContainerName(dc.ctx, dc.namespace, dc.containerName, dc.portEnvVarName)
+	podName, port, err := util.GetPodAndEnvVarWithContainerName(dc.ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer util.ChanSendZeroedVals(stopChan, 2)
+		defer util.ChanSendEmpty(stopChan, 2)
 		log.Debugf("Starting port forward from localhost:%d to %s/%s:%s", freePort, dc.namespace, podName, port)
 		if err := pf.ForwardPorts(); err != nil {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
@@ -121,7 +121,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer util.ChanSendZeroedVals(stopChan, 2)
+		defer util.ChanSendEmpty(stopChan, 2)
 		select {
 		case <-readyChan:
 			// Wait for the port forwarding to be ready
@@ -136,11 +136,11 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 
 	select {
 	case <-dc.ctx.Done():
-		util.ChanSendZeroedVals(stopChan, 2)
-		log.Debug("done signal received - sending signal to shutdown port foward")
+		util.ChanSendEmpty(stopChan, 2)
+		log.Debug("done signal received, now waiting for port forward and sse streamer to exit")
 	case <-stopChan:
-		util.ChanSendZeroedVals(stopChan, 2)
-		log.Debug("stop channel signaled, exiting goroutine")
+		util.ChanSendEmpty(stopChan, 2)
+		log.Debug("stop channel signaled, now waiting for port forward and sse streamer to exit")
 	}
 
 	wg.Wait()

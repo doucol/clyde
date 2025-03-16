@@ -1,6 +1,6 @@
 package util
 
-func ChanSendZeroedVals[T any](ch chan T, count int) {
+func ChanSendEmpty[T any](ch chan T, count int) {
 	for range count {
 		var val T
 		ch <- val

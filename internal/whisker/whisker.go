@@ -55,7 +55,7 @@ func WatchFlows(ctx context.Context) error {
 		ticker := time.Tick(2 * time.Second)
 		var lastError error
 		for {
-			dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, "PORT", UrlPath, flowCatcher)
+			dc := catcher.NewDataCatcher(ctx, CalicoNamespace, WhiskerContainer, UrlPath, flowCatcher)
 			if err := dc.CatchDataFromSSEStream(); err != nil {
 				// Don't keep logging the same error
 				if !errors.Is(err, lastError) {
