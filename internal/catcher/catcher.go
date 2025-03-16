@@ -132,6 +132,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		case <-time.After(2 * time.Second):
 			log.Debug("timeout waiting for port forward to be ready")
 		}
+		log.Debug("sse consumer has stopped")
 	}()
 
 	select {
