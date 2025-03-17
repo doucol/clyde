@@ -67,7 +67,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
 	config := cmdContext.K8sConfigFromContext(ctx)
 
 	// URL for the portforward endpoint on the pod
-	podName, port, err := util.GetPodAndEnvVarWithContainerName(ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
+	podName, port, err := util.GetPodAndEnvVarByContainerName(ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
 	if err != nil {
 		return err
 	}

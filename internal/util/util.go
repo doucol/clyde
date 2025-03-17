@@ -13,25 +13,49 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func GetPodAndEnvVarWithContainerName(ctx context.Context, namespace, containerName, envVarName string) (string, string, error) {
+func GetPodAndEnvVarByContainerName(ctx context.Context, namespace, containerName, envVarName string) (string, string, error) {
+	podName, envVals, err := GetPodAndEnvVarsByContainerName(ctx, namespace, containerName, envVarName)
+	if err != nil {
+		return "", "", err
+	}
+	if len(envVals) > 0 {
+		if val, ok := envVals[envVarName]; ok {
+			return podName, val, nil
+		}
+	}
+	return "", "", fmt.Errorf("pod or env var not found")
+}
+
+func GetPodAndEnvVarsByContainerName(ctx context.Context, namespace, containerName string, envVarNames ...string) (string, map[string]string, error) {
+	envVals := map[string]string{}
 	clientset := cmdContext.ClientsetFromContext(ctx)
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
 			if container.Name == containerName {
+
 				for _, env := range container.Env {
-					if env.Name == envVarName {
-						return pod.Name, env.Value, nil
+					for _, evn := range envVarNames {
+						if env.Name == evn {
+							envVals[env.Name] = env.Value
+						}
 					}
 				}
+
+				if len(envVals) > 0 {
+					return pod.Name, envVals, nil
+				} else {
+					return "", nil, fmt.Errorf("pod or env vars not found")
+				}
+
 			}
 		}
 	}
 
-	return "", "", fmt.Errorf("pod or env var name not found")
+	return "", nil, fmt.Errorf("pod or env vars not found")
 }
 
 func GetFreePort() (port int, err error) {
