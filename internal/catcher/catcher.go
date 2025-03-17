@@ -19,6 +19,8 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
+var ErrUnknownSSEData = errors.New("unknown data format in SSE stream")
+
 type pfOut struct{}
 
 func (l pfOut) Write(bytes []byte) (int, error) {
@@ -36,7 +38,6 @@ func (l pfErr) Write(bytes []byte) (int, error) {
 type CatcherFunc func(data string) error
 
 type DataCatcher struct {
-	ctx            context.Context
 	catcher        CatcherFunc
 	namespace      string
 	containerName  string
@@ -44,9 +45,8 @@ type DataCatcher struct {
 	PortEnvVarName string
 }
 
-func NewDataCatcher(ctx context.Context, namespace, containerName, urlPath string, catcher CatcherFunc) *DataCatcher {
+func NewDataCatcher(namespace, containerName, urlPath string, catcher CatcherFunc) *DataCatcher {
 	return &DataCatcher{
-		ctx:            ctx,
 		namespace:      namespace,
 		containerName:  containerName,
 		urlPath:        urlPath,
@@ -55,19 +55,19 @@ func NewDataCatcher(ctx context.Context, namespace, containerName, urlPath strin
 	}
 }
 
-func (dc *DataCatcher) CatchDataFromSSEStream() error {
+func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
 	select {
-	case <-dc.ctx.Done():
+	case <-ctx.Done():
 		log.Debug("done signal received - not entering CatchDataFromSSEStream")
 		return nil
 	default:
-		log.Debug("entering flow catcher")
+		log.Debug("entering data catcher")
 	}
 
-	config := cmdContext.K8sConfigFromContext(dc.ctx)
+	config := cmdContext.K8sConfigFromContext(ctx)
 
 	// URL for the portforward endpoint on the pod
-	podName, port, err := util.GetPodAndEnvVarWithContainerName(dc.ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
+	podName, port, err := util.GetPodAndEnvVarWithContainerName(ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 
 	defer func() {
 		util.ChanClose(stopChan, readyChan)
-		log.Debug("exited flow catcher")
+		log.Debug("exited data catcher")
 	}()
 
 	pf, err := portforward.New(dialer, ports, stopChan, readyChan, pfOut{}, pfErr{})
@@ -126,17 +126,17 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 		case <-readyChan:
 			// Wait for the port forwarding to be ready
 			sseURL := fmt.Sprintf("http://localhost:%d%s", freePort, dc.urlPath)
-			if err := dc.ConsumeSSEStream(sseURL, stopChan); err != nil {
+			if err := dc.consumeSSEStream(ctx, sseURL, stopChan); err != nil {
 				log.Debugf("error: ConsumeSSEStream return error: %s", err.Error())
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			log.Debug("timeout waiting for port forward to be ready")
 		}
 		log.Debug("sse consumer has stopped")
 	}()
 
 	select {
-	case <-dc.ctx.Done():
+	case <-ctx.Done():
 		util.ChanSendEmpty(stopChan, 2)
 		log.Debug("done signal received, now waiting for port forward and sse streamer to exit")
 	case <-stopChan:
@@ -145,12 +145,12 @@ func (dc *DataCatcher) CatchDataFromSSEStream() error {
 	}
 
 	wg.Wait()
-	log.Debug("all goroutines have exited, now exiting flow catcher")
+	log.Debug("all goroutines have exited, now exiting data catcher")
 	return nil
 }
 
-// ConsumeSSEStream connects to an SSE endpoint and processes events.
-func (dc *DataCatcher) ConsumeSSEStream(url string, stopChan chan struct{}) error {
+// consumeSSEStream connects to an SSE endpoint and processes events.
+func (dc *DataCatcher) consumeSSEStream(ctx context.Context, url string, stopChan chan struct{}) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SSE stream: %w", err)
@@ -165,11 +165,11 @@ func (dc *DataCatcher) ConsumeSSEStream(url string, stopChan chan struct{}) erro
 	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		select {
 		case <-stopChan:
-			log.Debug("stop signal received: in split func - sending back EOF")
-			return 0, nil, io.EOF
-		case <-dc.ctx.Done():
-			log.Debug("done signal received: in split func - sending back EOF")
-			return 0, nil, io.EOF
+			log.Debug("stop signal received: in split func - sending back ErrFinalToken")
+			return 0, nil, bufio.ErrFinalToken
+		case <-ctx.Done():
+			log.Debug("done signal received: in split func - sending back ErrFinalToken")
+			return 0, nil, bufio.ErrFinalToken
 		default:
 			return bufio.ScanLines(data, atEOF)
 		}
@@ -178,6 +178,9 @@ func (dc *DataCatcher) ConsumeSSEStream(url string, stopChan chan struct{}) erro
 	// Read the SSE stream line by line
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 
 		// Parse the event data
 		if strings.HasPrefix(line, "data:") {
@@ -187,17 +190,21 @@ func (dc *DataCatcher) ConsumeSSEStream(url string, stopChan chan struct{}) erro
 			if err := dc.catcher(data); err != nil {
 				return err
 			}
-		} else if line != "" {
-			log.Debugf("SSE stream data discarded: %s", line)
-			return nil
+		} else if strings.HasPrefix(line, "id:") || strings.HasPrefix(line, "event:") || strings.HasPrefix(line, "retry:") {
+			log.Debugf("SSE %s", line)
+		} else if strings.HasPrefix(line, ":") {
+			log.Debugf("SSE comment: %s", line)
+		} else {
+			log.Debugf("SSE unknown: %s", line)
+			return ErrUnknownSSEData
 		}
 	}
 
 	// Handle any errors during scanning
 	err = scanner.Err()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			log.Debug("EOF received from scanner in ConsumeSSEStream, exiting now")
+		if util.IsErr(err, io.EOF, bufio.ErrFinalToken) {
+			log.Debug("EOF or final token received from scanner in ConsumeSSEStream, exiting now")
 		} else {
 			return err
 		}
