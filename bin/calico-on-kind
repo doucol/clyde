@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+set -e
+set -o pipefail
+
+# NOTE: If you are unable to get more than one cluster running, you may need to adjust some kernel settings like so:
+# echo fs.inotify.max_user_watches=655360 | sudo tee -a /etc/sysctl.conf
+# echo fs.inotify.max_user_instances=1280 | sudo tee -a /etc/sysctl.conf
+# sudo sysctl -p
+
+# Setup defaults
+OSNAME=$(uname -s)
+DEFAULT_DP=Nftables
+DEFAULT_ENCAP=VXLANCrossSubnet
+if [[ "${OSNAME}" == "Darwin" ]]; then
+  DEFAULT_DP=Iptables
+  DEFAULT_ENCAP=IPIP
+fi
+
+# Establish env vars
+NAME=${NAME:-calico}
+VERSION=${VERSION:-lasthash}
+DP=${DP:-$DEFAULT_DP}
+PODNET=${PODNET:-10.244.0.0/16}
+SVCNET=${SVCNET:-10.96.0.0/16}
+WORKERS=${WORKERS:-2}
+PORT=${PORT:-6443}
+ENCAP=${ENCAP:-$DEFAULT_ENCAP}
+DEMOAPP=${DEMOAPP:-false}
+WHISKER=${WHISKER:-}
+if [[ "${WHISKER}" == "" && ("${VERSION}" == "lasthash" || "${VERSION}" == "master") ]]; then
+  WHISKER=true
+fi
+OPYAML=${OPYAML:-}
+KUBECTL="kubectl --context=kind-${NAME}"
+KIND="kind --name=${NAME}"
+
+function print_help() {
+  echo "Usage: $0 [new|del|demo|whisker]"
+  echo ""
+  echo "  new      - Create a new kind cluster and install Calico OSS"
+  echo "             (this will first delete any existing cluster named '${NAME}'"
+  echo "  del      - Delete the kind cluster"
+  echo "  demo     - Install the demo app 'GoogleCloudPlatform/microservices-demo'"
+  echo "  whisker  - Install the whisker custom resource, if it does not exist"
+  echo ""
+  echo "Environment variables:"
+  echo "  NAME     - The name of the kind cluster (default: calico)"
+  echo "  VERSION  - The version of Calico to install - valid values: lasthash|latest|master|<version_tag> (default: lasthash)"
+  echo "  DP       - Dataplane to use - valid values: BPF|Iptables|Nftables (default: ${DP})"
+  echo "  PODNET   - The pod network CIDR to use (default: 10.244.0.0/16)"
+  echo "  SVCNET   - The service network CIDR to use (default: 10.96.0.0/16)"
+  echo "  WORKERS  - The number of worker nodes to create (default: 2)"
+  echo "  PORT     - The K8s API server port to use (default: 6443)"
+  echo "  ENCAP    - The tunnel encapsulation to use - valid values: IPIP|IPIPCrossSubnet|None|VXLAN|VXLANCrossSubnet (default: ${ENCAP})"
+  echo "  DEMOAPP  - Install the demo app - value values: true|false (default: false)"
+  echo "  OPYAML   - The operator yaml to use for installation (default: varies depending on value for VERSION)"
+  echo ""
+  echo "Dependencies:"
+  echo "  kind (hence docker), kubectl, jq, curl, sort, grep, head, xargs"
+}
+
+function render_env_vars() {
+  if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
+    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
+  elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
+    VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  fi
+  OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
+}
+
+function confirm_state() {
+  echo ""
+  echo "Existing state:"
+  echo "  NAME     - ${NAME}"
+  echo "  VERSION  - ${VERSION}"
+  echo "  DP       - ${DP}"
+  echo "  PODNET   - ${PODNET}"
+  echo "  SVCNET   - ${SVCNET}"
+  echo "  WORKERS  - ${WORKERS}"
+  echo "  PORT     - ${PORT}"
+  echo "  ENCAP    - ${ENCAP}"
+  echo "  DEMOAPP  - ${DEMOAPP}"
+  echo "  OPYAML   - ${OPYAML}"
+  echo ""
+  read -p "Continue y/N? " -n 1 -r REPLY
+  echo ""
+  if [[ "${REPLY}" =~ ^[Yy]$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function worker_nodes() {
+  local wn=""
+  for i in $(seq 1 "${WORKERS}"); do
+    wn="# worker ${i}"$'\n'"- role: worker"$'\n'"${wn}"
+  done
+  echo "${wn}"
+}
+
+function version_greater_equal() {
+  printf '%s\n%s\n' "$2" "$1" | sort --check=quiet --version-sort
+}
+
+function goldmain_whisker_crs() {
+  printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Goldmane" "metadata:" "  name: default"
+  printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Whisker" "metadata:" "  name: default"
+}
+
+function whisker_cr_installed() {
+  ${KUBECTL} get whisker.operator.tigera.io/default &>/dev/null
+}
+
+function whisker_installed() {
+  if whisker_cr_installed; then
+    if ${KUBECTL} wait --for=condition=available --timeout=1s tigerastatuses/whisker &>/dev/null; then
+      if ${KUBECTL} wait pod --namespace=calico-system --timeout=1s --for=condition=ready -l=k8s-app=whisker ||
+        ${KUBECTL} wait pod --namespace=calico-system --timeout=1s --for=condition=ready -l=k8s-app=calico-whisker; then
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+function calico_version() {
+  local COUNT
+  local cv
+  cv=null
+  COUNT=0
+  while [[ "${cv}" == "null" ]]; do
+    COUNT=$((COUNT + 1))
+    if [[ "${COUNT}" -gt 20 ]]; then
+      break
+    fi
+    cv=$(${KUBECTL} get "clusterinformations.crd.projectcalico.org/default" -o=json | jq -r '.spec.calicoVersion' | xargs)
+    sleep 2
+  done
+  echo "${cv}"
+}
+
+function install_whisker() {
+  if [[ "${WHISKER}" != "true" ]]; then
+    return 0
+  fi
+  CALICO_VERSION=$(calico_version)
+  if ! version_greater_equal "${CALICO_VERSION}" "v3.30"; then
+    echo "Warning: This version of calico '${CALICO_VERSION}' may not support whisker"
+  fi
+
+  echo ""
+  echo "Deploying whisker..."
+
+  if whisker_installed; then
+    echo "Whisker is installed."
+    return 0
+  fi
+
+  if ! whisker_cr_installed; then
+    ${KUBECTL} create -f - <<<"$(whisker_cr)"
+  fi
+
+  if ! ${KUBECTL} wait --for=condition=available --timeout=30s tigerastatuses/whisker &>/dev/null; then
+    # NOTE: Without restarting the operator it is hit-or-miss on whether we'll have whisker reliably deployed - need to dig into this more later
+    ${KUBECTL} delete pod --namespace=tigera-operator -l=k8s-app=tigera-operator
+    while ! ${KUBECTL} wait --for=condition=available --timeout=30s tigerastatuses/whisker 2>/dev/null; do
+      echo "Waiting for 'tigerastatus/whisker' resource to become available..."
+      sleep 2
+    done
+  fi
+
+  echo "Whisker is installed."
+}
+
+function wait_for_calico_node_ready() {
+  echo "Waiting for all 'calico-node' status to become live & ready..."
+  TOTAL_NODES=$(${KIND} get nodes | wc -l | xargs)
+  FAILED=0
+  SUCCEEDED=0
+  for i in $(seq 1 100); do
+    if ${KUBECTL} wait pod --namespace=calico-system --for=condition=Ready --all --timeout=30s -l k8s-app=calico-node; then
+      SUCCEEDED=$((SUCCEEDED + 1))
+    else
+      FAILED=$((FAILED + 1))
+      SUCCEEDED=0
+    fi
+    if [[ "${SUCCEEDED}" -ge "${TOTAL_NODES}" ]]; then
+      echo "SUCCESS:  All calico-nodes are live & ready!"
+      return 0
+    else
+      echo "Waiting for ${TOTAL_NODES} consecutive successful ready checks, we've only had ${SUCCEEDED} success and ${FAILED} failed..."
+    fi
+    sleep 20
+  done
+  return 1
+}
+
+function install_demo_app() {
+  if [[ "${DEMOAPP}" == "true" || "${DEMO_APP}" == "true" ]]; then
+    echo ""
+    echo "Installing Demo App 'GoogleCloudPlatform/microservices-demo'..."
+    if [[ "${NO_WAIT}" == "true" ]] || wait_for_calico_node_ready; then
+      ${KUBECTL} create -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/refs/heads/main/release/kubernetes-manifests.yaml
+      return $?
+    else
+      echo "ERROR: Not all calico-nodes are ready after waiting too long - exiting..."
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# function preload_master_images() {
+#   # If IMAGE_PRELOAD is set to true, we'll pull the images and load them into the kind cluster
+#   # to accelerate the setup / install process (just 'master' for now)
+#   if [[ "${VERSION}" == "master" && "${IMAGE_PRELOAD}" == "true" ]]; then
+#     images=(
+#       calico/node:master
+#       calico/cni:master
+#       calico/typha:master
+#       calico/kube-controllers:master
+#       calico/csi:master
+#       calico/node-driver-registrar:master
+#       calico/apiserver:master
+#       calico/whisker:master
+#       calico/whisker-backend:master
+#       calico/goldmane:master
+#       calico/guardian:master
+#       quay.io/tigera/operator:master
+#     )
+#
+#     # Loop through each image and pull it
+#     for image in "${images[@]}"; do
+#       docker pull "$image"
+#       ${KIND} load docker-image "$image"
+#     done
+#   fi
+# }
+
+function install_docker_secrets() {
+  if [[ -f "$HOME/.docker/config.json" ]]; then
+    echo "Copying your docker auth secrets ($HOME/.docker/config.json) to each cluster node..."
+    for node in $(${KIND} get nodes); do
+      docker cp "$HOME/.docker/config.json" "${node}:/var/lib/kubelet/config.json"
+      docker exec "${node}" systemctl restart kubelet.service
+    done
+  else
+    echo "Warning: no docker auth secret is being applied to the nodes since '$HOME/.docker/config.json' does not exist"
+  fi
+}
+
+function install_calico_oss() {
+  if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
+    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
+  elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
+    VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  fi
+  OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
+
+  echo ""
+  echo "Installing Calico OSS operator using: ${OPYAML}"
+  ${KUBECTL} create -f "${OPYAML}"
+  while ! ${KUBECTL} wait --for=condition=established --timeout=60s crd/tigerastatuses.operator.tigera.io &>/dev/null; do
+    echo "Waiting for Calico CRDs to be created..."
+    sleep 2
+  done
+  sleep 2
+
+  # Create calico custom resource configurations to kick off the install
+  local whiskercr=""
+  if [[ "${WHISKER}" == "true" ]]; then
+    whiskercr=$(goldmain_whisker_crs)
+  fi
+
+  ${KUBECTL} create -f - <<EOF
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    linuxDataplane: ${DP}
+    ipPools:
+    - name: default-ipv4-ippool
+      blockSize: 26
+      cidr: ${PODNET}
+      encapsulation: ${ENCAP}
+      natOutgoing: Enabled
+      nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
+${whiskercr}
+EOF
+
+  #${KUBECTL} create -f "https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/custom-resources.yaml"
+
+  while ! ${KUBECTL} wait --for=condition=available --timeout=60s --all tigerastatuses 2>/dev/null; do
+    echo "Waiting for all 'tigerastatus' resources to become available..."
+    sleep 2
+  done
+
+  ${KUBECTL} wait --timeout=30s --for=create clusterinformations.crd.projectcalico.org/default
+  CALICO_VERSION=$(calico_version)
+
+  echo ""
+  echo "Installed Calico version: ${CALICO_VERSION}"
+}
+
+function create_kind_cluster() {
+  WORKER_NODES=$(worker_nodes)
+  ${KIND} delete cluster
+  ${KIND} create cluster --config - <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+${WORKER_NODES}
+networking:
+  disableDefaultCNI: true
+  podSubnet: ${PODNET}
+  serviceSubnet: ${SVCNET}
+  apiServerPort: ${PORT}
+EOF
+}
+
+function create_kind_cluster_and_install() {
+  create_kind_cluster
+
+  install_docker_secrets
+
+  install_calico_oss
+
+  install_whisker
+
+  install_demo_app
+}
+
+function checkOS() {
+  local machine
+  case "${OSNAME}" in
+  Linux*) machine=Linux ;;
+  Darwin*) machine=Mac ;;
+  *) machine="${OSNAME}" ;;
+  esac
+  if [[ "${machine}" == "Linux" || "${machine}" == "Mac" ]]; then
+    if [[ "${1}" == "show" ]]; then
+      echo ""
+      echo "You are running on ${machine}. This script should work as expected as long as you have the required dependencies."
+      echo ""
+    fi
+  else
+    echo ""
+    echo "You are running on '${machine}'. This script may not work as expected. Best of luck!"
+    echo ""
+  fi
+  return 0
+}
+
+function main() {
+  if [[ "${1}" == "demo" ]]; then
+    checkOS
+    DEMOAPP=true NO_WAIT=true install_demo_app
+  elif [[ "${1}" == "new" ]]; then
+    checkOS
+    render_env_vars
+    if confirm_state; then
+      create_kind_cluster_and_install
+    else
+      echo "Exiting..."
+    fi
+  elif [[ "${1}" == "whisker" ]]; then
+    checkOS
+    WHISKER=true install_whisker
+  elif [[ "${1}" == "del" || "${1}" == "delete" ]]; then
+    checkOS
+    ${KIND} delete cluster
+  else
+    checkOS show
+    print_help
+  fi
+}
+
+main "${1}"
