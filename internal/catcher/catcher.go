@@ -203,7 +203,7 @@ func (dc *DataCatcher) consumeSSEStream(ctx context.Context, url string, stopCha
 	// Handle any errors during scanning
 	err = scanner.Err()
 	if err != nil {
-		if util.IsErr(err, io.EOF, bufio.ErrFinalToken) {
+		if util.IsErr(err, io.EOF, bufio.ErrFinalToken, io.ErrUnexpectedEOF) {
 			log.Debug("EOF or final token received from scanner in ConsumeSSEStream, exiting now")
 		} else {
 			return err
