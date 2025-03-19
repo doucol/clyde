@@ -124,10 +124,10 @@ func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 
 func (fa *FlowApp) viewDetail(row int, key string) *tview.Application {
 	tableDataHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
-		SetContent(&flowDetailTableHeader{fds: fa.fds, key: key})
+		SetContent(&flowKeyHeaderTable{fds: fa.fds, key: key})
 
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
+		SetContent(&flowSumDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
