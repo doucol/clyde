@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	UrlPath          = "/flows?watch=true"
 )
 
+var NOTUI = os.Getenv("NOTUI") != ""
+
 func WatchFlows(ctx context.Context) error {
 	// cctx := cmdContext.CmdContextFromContext(ctx)
 	wg := sync.WaitGroup{}
@@ -26,8 +29,6 @@ func WatchFlows(ctx context.Context) error {
 		return err
 	}
 	defer fds.Close()
-
-	flowApp := NewFlowApp(ctx, fds)
 
 	flowCatcher := func(data string) error {
 		var fr flowdata.FlowResponse
@@ -48,6 +49,8 @@ func WatchFlows(ctx context.Context) error {
 	}
 
 	// Go capture flows
+	flowApp := NewFlowApp(ctx, fds)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -81,16 +84,17 @@ func WatchFlows(ctx context.Context) error {
 	}()
 
 	// Go run the flow watcher app
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer flowApp.Stop()
-		if err := flowApp.Run(); err != nil {
-			log.Panicf("error running flow app: %v", err)
-		}
-		log.Debug("exiting flow watcher tui app")
-	}()
-
+	if !NOTUI {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer flowApp.Stop()
+			if err := flowApp.Run(); err != nil {
+				log.Panicf("error running flow app: %v", err)
+			}
+			log.Debug("exiting flow watcher tui app")
+		}()
+	}
 	// Wait for both goroutines to finish
 	wg.Wait()
 	log.Debug("exiting watch flows")
