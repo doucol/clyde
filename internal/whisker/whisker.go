@@ -10,6 +10,7 @@ import (
 
 	"github.com/doucol/clyde/internal/catcher"
 	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/doucol/clyde/internal/tui"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,7 +50,7 @@ func WatchFlows(ctx context.Context) error {
 	}
 
 	// Go capture flows
-	flowApp := NewFlowApp(ctx, fds)
+	flowApp := tui.NewFlowApp(fds)
 
 	wg.Add(1)
 	go func() {
@@ -89,7 +90,7 @@ func WatchFlows(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			defer flowApp.Stop()
-			if err := flowApp.Run(); err != nil {
+			if err := flowApp.Run(ctx); err != nil {
 				log.Panicf("error running flow app: %v", err)
 			}
 			log.Debug("exiting flow watcher tui app")

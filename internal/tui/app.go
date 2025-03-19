@@ -1,8 +1,9 @@
-package whisker
+package tui
 
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/doucol/clyde/internal/cmdContext"
@@ -13,19 +14,19 @@ import (
 )
 
 type FlowApp struct {
-	ctx     context.Context
+	mu      *sync.Mutex
 	app     *tview.Application
 	fds     *flowdata.FlowDataStore
 	stopped bool
 }
 
-func NewFlowApp(ctx context.Context, fds *flowdata.FlowDataStore) *FlowApp {
-	return &FlowApp{ctx, tview.NewApplication(), fds, false}
+func NewFlowApp(fds *flowdata.FlowDataStore) *FlowApp {
+	return &FlowApp{&sync.Mutex{}, tview.NewApplication(), fds, false}
 }
 
-func (fa *FlowApp) Run() error {
+func (fa *FlowApp) Run(ctx context.Context) error {
 	defer fa.Stop()
-	cmdctx := cmdContext.CmdContextFromContext(fa.ctx)
+	cmdctx := cmdContext.CmdContextFromContext(ctx)
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -42,7 +43,7 @@ func (fa *FlowApp) Run() error {
 		ticker := time.Tick(2 * time.Second)
 		for {
 			select {
-			case <-fa.ctx.Done():
+			case <-ctx.Done():
 				log.Debugf("flowApp shutting down: done signal received")
 				fa.Stop()
 				return
@@ -55,7 +56,7 @@ func (fa *FlowApp) Run() error {
 	fa.setTheme()
 
 	// Start with a summary view
-	if err := fa.ViewSummary(0).Run(); err != nil {
+	if err := fa.viewSummary(0).Run(); err != nil {
 		return err
 	}
 	return nil
@@ -84,13 +85,15 @@ func concatCells(td *tview.Table, row int, sep string, cols ...int) string {
 }
 
 func (fa *FlowApp) Stop() {
+	fa.mu.Lock()
+	defer fa.mu.Unlock()
 	if fa.app != nil && !fa.stopped {
-		fa.stopped = true
 		fa.app.Stop()
+		fa.stopped = true
 	}
 }
 
-func (fa *FlowApp) ViewSummary(selectRow int) *tview.Application {
+func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
 		SetContent(&flowSumTable{fds: fa.fds}).SetFixed(1, 0)
 
@@ -100,7 +103,7 @@ func (fa *FlowApp) ViewSummary(selectRow int) *tview.Application {
 			if row > 0 {
 				key := concatCells(tableData, row, "|",
 					SUMCOL_SRC_NAMESPACE, SUMCOL_SRC_NAME, SUMCOL_DST_NAMESPACE, SUMCOL_DST_NAME, SUMCOL_PROTO, SUMCOL_PORT)
-				fa.ViewDetail(row, key)
+				fa.viewDetail(row, key)
 				return nil
 			}
 		}
@@ -119,7 +122,7 @@ func (fa *FlowApp) ViewSummary(selectRow int) *tview.Application {
 	return fa.app
 }
 
-func (fa *FlowApp) ViewDetail(row int, key string) *tview.Application {
+func (fa *FlowApp) viewDetail(row int, key string) *tview.Application {
 	tableDataHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
 		SetContent(&flowDetailTableHeader{fds: fa.fds, key: key})
 
@@ -128,7 +131,7 @@ func (fa *FlowApp) ViewDetail(row int, key string) *tview.Application {
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
-			fa.ViewSummary(row)
+			fa.viewSummary(row)
 			return nil
 		}
 		return event
