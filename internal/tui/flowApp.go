@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -17,11 +18,12 @@ type FlowApp struct {
 	mu      *sync.Mutex
 	app     *tview.Application
 	fds     *flowdata.FlowDataStore
+	fc      *flowcache.FlowCache
 	stopped bool
 }
 
-func NewFlowApp(fds *flowdata.FlowDataStore) *FlowApp {
-	return &FlowApp{&sync.Mutex{}, tview.NewApplication(), fds, false}
+func NewFlowApp(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) *FlowApp {
+	return &FlowApp{&sync.Mutex{}, tview.NewApplication(), fds, fc, false}
 }
 
 func (fa *FlowApp) Run(ctx context.Context) error {
@@ -95,15 +97,15 @@ func (fa *FlowApp) Stop() {
 
 func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowSumTable{fds: fa.fds}).SetFixed(1, 0)
+		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
-			row, _ := tableData.GetSelection()
-			if row > 0 {
-				key := concatCells(tableData, row, "|",
+			sumRow, _ := tableData.GetSelection()
+			if sumRow > 0 {
+				key := concatCells(tableData, sumRow, "|",
 					SUMCOL_SRC_NAMESPACE, SUMCOL_SRC_NAME, SUMCOL_DST_NAMESPACE, SUMCOL_DST_NAME, SUMCOL_PROTO, SUMCOL_PORT)
-				fa.viewDetail(row, key)
+				fa.viewSumDetail(sumRow, key, 0)
 				return nil
 			}
 		}
@@ -122,16 +124,51 @@ func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 	return fa.app
 }
 
-func (fa *FlowApp) viewDetail(row int, key string) *tview.Application {
-	tableDataHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
+func (fa *FlowApp) viewSumDetail(sumRow int, key string, sumDetailRow int) *tview.Application {
+	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
 		SetContent(&flowKeyHeaderTable{fds: fa.fds, key: key})
 
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
 		SetContent(&flowSumDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEnter:
+			sumDetailRow, _ := tableData.GetSelection()
+			if sumDetailRow > 0 {
+				fa.viewFlowDetail(sumRow, key, sumDetailRow)
+				return nil
+			}
+		case tcell.KeyEscape:
+			fa.viewSummary(sumRow)
+			return nil
+		}
+		return event
+	})
+
+	tableData.SetFocusFunc(func() {
+		tableData.Select(sumDetailRow, 0)
+	})
+
+	fa.setTheme()
+	flex := tview.NewFlex()
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
+	flex.AddItem(tableKeyHeader, 6, 1, false)
+	flex.AddItem(tableData, 0, 1, true)
+	fa.app.SetRoot(flex, true)
+	return fa.app
+}
+
+func (fa *FlowApp) viewFlowDetail(sumRow int, key string, sumDetailRow int) *tview.Application {
+	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
+		SetContent(&flowKeyHeaderTable{fds: fa.fds, key: key})
+
+	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
+		SetContent(&flowDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
+
+	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
-			fa.viewSummary(row)
+			fa.viewSumDetail(sumRow, key, sumDetailRow)
 			return nil
 		}
 		return event
@@ -140,8 +177,8 @@ func (fa *FlowApp) viewDetail(row int, key string) *tview.Application {
 	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
-	flex.AddItem(tableDataHeader, 6, 1, false)
-	flex.AddItem(tableData, 0, 1, true)
+	flex.AddItem(tableKeyHeader, 6, 1, false)
+	// flex.AddItem(tableData, 0, 1, true)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }

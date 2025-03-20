@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/doucol/clyde/internal/catcher"
+	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/tui"
 	log "github.com/sirupsen/logrus"
@@ -37,7 +38,7 @@ func WatchFlows(ctx context.Context) error {
 			log.Panicf("error unmarshalling flow data: %v", err)
 		}
 		fd := &flowdata.FlowData{FlowResponse: fr}
-		fs, newSum, err := fds.Add(fd)
+		fs, newSum, err := fds.AddFlow(fd)
 		if err != nil {
 			log.Panicf("error adding flow data: %v", err)
 		}
@@ -50,7 +51,8 @@ func WatchFlows(ctx context.Context) error {
 	}
 
 	// Go capture flows
-	flowApp := tui.NewFlowApp(fds)
+	flowCache := flowcache.NewFlowCache(ctx, fds)
+	flowApp := tui.NewFlowApp(fds, flowCache)
 
 	wg.Add(1)
 	go func() {
