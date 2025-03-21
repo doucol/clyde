@@ -64,6 +64,48 @@ spec:
         ports:
           - 8080
 ---
+# Allow loadgenerator service to connect to the frontend service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: loadgenerator-frontend-policy
+  namespace: default
+spec:
+  selector: app in {'loadgenerator', 'frontend'}
+  types:
+    - Ingress
+    - Egress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 8080
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 8080
+---
+# Allow the frontend service to connect to external sources for resources
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: frontend-internet-egress
+  namespace: default
+spec:
+  selector: app == 'frontend'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443
+---
 # Allow frontend to connect to productcatalog service
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
@@ -243,7 +285,7 @@ spec:
       destination:
         selector: 'app == "emailservice"'
         ports:
-          - 5000
+          - 8080
     - action: Allow
       protocol: TCP
       destination:
@@ -443,7 +485,7 @@ spec:
         selector: 'app == "checkoutservice"'
       destination:
         ports:
-          - 5000
+          - 8080
 ---
 # Allow ad service ingress from frontend only
 apiVersion: projectcalico.org/v3

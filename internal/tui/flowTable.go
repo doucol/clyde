@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"strconv"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -49,7 +51,16 @@ var (
 	// valStyle = tcell.Style{}.Normal().Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
 	hdrStyle = tcell.Style{}.Bold(true)
 	valStyle = tcell.Style{}
+	localLoc *time.Location
 )
+
+func init() {
+	var err error
+	localLoc, err = time.LoadLocation("Local")
+	if err != nil {
+		panic(errors.New("unable to load 'local' time location: " + err.Error()))
+	}
+}
 
 func cell(val string, width, exp int) *tview.TableCell {
 	return tview.NewTableCell(val).SetMaxWidth(width).SetExpansion(exp)
@@ -69,4 +80,9 @@ func uintos(v uint64) string {
 
 func intos(v int64) string {
 	return strconv.FormatInt(v, 10)
+}
+
+func tf(t time.Time) string {
+	// return t.In(localLoc).Format(time.RFC3339)
+	return t.Format(time.RFC3339)
 }

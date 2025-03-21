@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/rivo/tview"
@@ -25,9 +24,9 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 
 	switch column {
 	case DTLCOL_START_TIME:
-		return valCell(fd.StartTime.Format(time.RFC3339), 1, 1)
+		return valCell(tf(fd.StartTime), 3, 0)
 	case DTLCOL_END_TIME:
-		return valCell(fd.EndTime.Format(time.RFC3339), 1, 1)
+		return valCell(tf(fd.EndTime), 3, 0)
 	case DTLCOL_SRC_LABELS:
 		return valCell(fd.SourceLabels, 2, 3)
 	case DTLCOL_DST_LABELS:
@@ -39,9 +38,9 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 	case DTLCOL_PACK_OUT:
 		return valCell(intos(fd.PacketsOut), 1, 0)
 	case DTLCOL_BYTE_IN:
-		return valCell(intos(fd.BytesIn), 1, 1)
+		return valCell(intos(fd.BytesIn), 1, 0)
 	case DTLCOL_BYTE_OUT:
-		return valCell(intos(fd.BytesOut), 1, 1)
+		return valCell(intos(fd.BytesOut), 1, 0)
 	case DTLCOL_ACTION:
 		return valCell(fd.Action, 1, 0)
 	}
