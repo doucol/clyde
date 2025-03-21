@@ -1,0 +1,503 @@
+# Default deny all ingress traffic to pods in the default namespace
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: default
+spec:
+  selector: "all()"
+  types:
+    - Ingress
+---
+# Default deny all egress traffic from pods in the default namespace
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: default
+spec:
+  selector: "all()"
+  types:
+    - Egress
+---
+# Allow DNS resolution
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: default
+spec:
+  selector: "all()"
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+        ports:
+          - 53
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+        ports:
+          - 53
+---
+# Allow frontend to receive traffic from external sources
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      source: {}
+      destination:
+        ports:
+          - 8080
+---
+# Allow frontend to connect to productcatalog service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-productcatalog
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "productcatalogservice"'
+        ports:
+          - 3550
+---
+# Allow frontend to connect to currency service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-currency
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "currencyservice"'
+        ports:
+          - 7000
+---
+# Allow frontend to connect to cart service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-cart
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "cartservice"'
+        ports:
+          - 7070
+---
+# Allow frontend to connect to recommendation service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-recommendation
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "recommendationservice"'
+        ports:
+          - 8080
+---
+# Allow frontend to connect to shipping service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-shipping
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "shippingservice"'
+        ports:
+          - 50051
+---
+# Allow frontend to connect to checkout service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-checkout
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "checkoutservice"'
+        ports:
+          - 5050
+---
+# Allow frontend to connect to ad service
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-ad
+  namespace: default
+spec:
+  selector: 'app == "frontend"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "adservice"'
+        ports:
+          - 9555
+---
+# Allow checkoutservice ingress from frontend only
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-checkout-ingress
+  namespace: default
+spec:
+  selector: 'app == "checkoutservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "frontend"'
+      destination:
+        ports:
+          - 5050
+---
+# Allow checkoutservice to connect to downstream services
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-checkout-egress
+  namespace: default
+spec:
+  selector: 'app == "checkoutservice"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "productcatalogservice"'
+        ports:
+          - 3550
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "shippingservice"'
+        ports:
+          - 50051
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "paymentservice"'
+        ports:
+          - 50051
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "emailservice"'
+        ports:
+          - 5000
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "currencyservice"'
+        ports:
+          - 7000
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "cartservice"'
+        ports:
+          - 7070
+---
+# Allow cartservice ingress from frontend and checkout
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-cart-ingress
+  namespace: default
+spec:
+  selector: 'app == "cartservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app in {"frontend", "checkoutservice"}'
+      destination:
+        ports:
+          - 7070
+---
+# Allow cartservice to connect to redis
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-cart-to-redis
+  namespace: default
+spec:
+  selector: 'app == "cartservice"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "redis-cart"'
+        ports:
+          - 6379
+---
+# Allow redis-cart ingress from cartservice only
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-cart-ingress
+  namespace: default
+spec:
+  selector: 'app == "redis-cart"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "cartservice"'
+      destination:
+        ports:
+          - 6379
+---
+# Allow productcatalog ingress from multiple services
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-productcatalog-ingress
+  namespace: default
+spec:
+  selector: 'app == "productcatalogservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app in {"frontend", "recommendationservice", "checkoutservice"}'
+      destination:
+        ports:
+          - 3550
+---
+# Allow shipping ingress from checkout and frontend
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-shipping-ingress
+  namespace: default
+spec:
+  selector: 'app == "shippingservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app in {"frontend", "checkoutservice"}'
+      destination:
+        ports:
+          - 50051
+---
+# Allow recommendation ingress from frontend
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-recommendation-ingress
+  namespace: default
+spec:
+  selector: 'app == "recommendationservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "frontend"'
+      destination:
+        ports:
+          - 8080
+---
+# Allow recommendation to connect to productcatalog
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-recommendation-to-productcatalog
+  namespace: default
+spec:
+  selector: 'app == "recommendationservice"'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'app == "productcatalogservice"'
+        ports:
+          - 3550
+---
+# Allow currency service ingress from multiple services
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-currency-ingress
+  namespace: default
+spec:
+  selector: 'app == "currencyservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app in {"frontend", "checkoutservice"}'
+      destination:
+        ports:
+          - 7000
+---
+# Allow payment service ingress from checkout only
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-payment-ingress
+  namespace: default
+spec:
+  selector: 'app == "paymentservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "checkoutservice"'
+      destination:
+        ports:
+          - 50051
+---
+# Allow email service ingress from checkout only
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-email-ingress
+  namespace: default
+spec:
+  selector: 'app == "emailservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "checkoutservice"'
+      destination:
+        ports:
+          - 5000
+---
+# Allow ad service ingress from frontend only
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-ad-ingress
+  namespace: default
+spec:
+  selector: 'app == "adservice"'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: 'app == "frontend"'
+      destination:
+        ports:
+          - 9555
+---
+# Allow pods to connect to Kubernetes API
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-k8s-api-egress
+  namespace: default
+spec:
+  selector: "all()"
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'kubernetes.io/role == "master"'
+        namespaceSelector: global()
+        ports:
+          - 443
+          - 6443
+---
+# Allow monitoring system to access all pods (for metrics)
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-ingress
+  namespace: default
+spec:
+  selector: "all()"
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9090 # Prometheus metrics
+

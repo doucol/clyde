@@ -178,7 +178,7 @@ func (fa *FlowApp) viewFlowDetail(sumRow int, key string, sumDetailRow int) *tvi
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
 	flex.AddItem(tableKeyHeader, 6, 1, false)
-	// flex.AddItem(tableData, 0, 1, true)
+	flex.AddItem(tableData, 0, 1, true)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }

@@ -118,7 +118,7 @@ func (fds *FlowDataStore) GetFlowSumCount() int {
 	return cnt
 }
 
-func (fds *FlowDataStore) GetFlowDetail(key string, id int) (*FlowData, bool) {
+func (fds *FlowDataStore) GetFlowDetail(key string, idx int) (*FlowData, bool) {
 	fs := &FlowSum{}
 	err := fds.db.One("Key", key, fs)
 	if err != nil {
@@ -126,11 +126,26 @@ func (fds *FlowDataStore) GetFlowDetail(key string, id int) (*FlowData, bool) {
 	}
 
 	fd := []FlowData{}
-	err = fds.db.Find("SumID", fs.ID, &fd, storm.Skip(id-1), storm.Limit(1))
+	err = fds.db.Find("SumID", fs.ID, &fd, storm.Skip(idx-1), storm.Limit(1))
 	if err != nil {
-		panic(fmt.Errorf("error getting flow detail: %s, %d, %v", key, id, fs))
+		panic(fmt.Errorf("error getting flow detail: %s, %d, %v", key, idx, fs))
 	}
 	return &fd[0], true
+}
+
+func (fds *FlowDataStore) GetAllFlowsByKey(key string) []*FlowData {
+	fs := &FlowSum{}
+	err := fds.db.One("Key", key, fs)
+	if err != nil {
+		panic(fmt.Errorf("error getting flow aggregate: %v", err))
+	}
+
+	fd := []*FlowData{}
+	err = fds.db.Find("SumID", fs.ID, &fd)
+	if err != nil {
+		panic(fmt.Errorf("error getting flow detail: %s, %v", key, fs))
+	}
+	return fd
 }
 
 func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
