@@ -58,6 +58,7 @@ spec:
     - Ingress
   ingress:
     - action: Allow
+      protocol: TCP
       source: {}
       destination:
         ports:
@@ -495,6 +496,7 @@ spec:
     - Ingress
   ingress:
     - action: Allow
+      protocol: TCP
       source:
         namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
       destination:
