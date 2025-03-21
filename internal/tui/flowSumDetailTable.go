@@ -12,7 +12,10 @@ type flowSumDetailTable struct {
 	tview.TableContentReadOnly
 	fds   *flowdata.FlowDataStore
 	flows []*flowdata.FlowData
-	key   string
+	sumID int
+}
+
+func (fdt *flowSumDetailTable) CurrentID() {
 }
 
 func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
@@ -24,7 +27,9 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 
 	switch column {
 	case DTLCOL_START_TIME:
-		return valCell(tf(fd.StartTime), 3, 0)
+		tc := valCell(tf(fd.StartTime), 3, 0)
+		tc.SetReference(fd.ID)
+		return tc
 	case DTLCOL_END_TIME:
 		return valCell(tf(fd.EndTime), 3, 0)
 	case DTLCOL_SRC_LABELS:
@@ -49,7 +54,7 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
-	fdt.flows = fdt.fds.GetAllFlowsByKey(fdt.key)
+	fdt.flows = fdt.fds.GetAllFlowsBySumID(fdt.sumID)
 	return len(fdt.flows) + 1
 }
 

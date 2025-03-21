@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -78,14 +77,6 @@ func (fa *FlowApp) setTheme() {
 	tview.Styles.ContrastSecondaryTextColor = tcell.ColorWhite
 }
 
-func concatCells(td *tview.Table, row int, sep string, cols ...int) string {
-	s := []string{}
-	for i := range cols {
-		s = append(s, strings.TrimSpace(td.GetCell(row, cols[i]).Text))
-	}
-	return strings.Join(s, sep)
-}
-
 func (fa *FlowApp) Stop() {
 	fa.mu.Lock()
 	defer fa.mu.Unlock()
@@ -103,9 +94,8 @@ func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 		if event.Key() == tcell.KeyEnter {
 			sumRow, _ := tableData.GetSelection()
 			if sumRow > 0 {
-				key := concatCells(tableData, sumRow, "|",
-					SUMCOL_SRC_NAMESPACE, SUMCOL_SRC_NAME, SUMCOL_DST_NAMESPACE, SUMCOL_DST_NAME, SUMCOL_PROTO, SUMCOL_PORT)
-				fa.viewSumDetail(sumRow, key, 0)
+				sumID := tableData.GetCell(sumRow, 0).GetReference().(int)
+				fa.viewSumDetail(sumID, sumRow, 0)
 				return nil
 			}
 		}
@@ -124,19 +114,21 @@ func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 	return fa.app
 }
 
-func (fa *FlowApp) viewSumDetail(sumRow int, key string, sumDetailRow int) *tview.Application {
+func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Application {
 	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
-		SetContent(&flowKeyHeaderTable{fds: fa.fds, key: key})
+		SetContent(&flowKeyHeaderTable{fds: fa.fds, sumID: sumID})
 
+	dt := &flowSumDetailTable{fds: fa.fds, sumID: sumID}
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowSumDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
+		SetContent(dt).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEnter:
 			sumDetailRow, _ := tableData.GetSelection()
 			if sumDetailRow > 0 {
-				fa.viewFlowDetail(sumRow, key, sumDetailRow)
+				flowID := tableData.GetCell(sumDetailRow, 0).GetReference().(int)
+				fa.viewFlowDetail(sumID, flowID, sumRow, sumDetailRow)
 				return nil
 			}
 		case tcell.KeyEscape:
@@ -159,16 +151,16 @@ func (fa *FlowApp) viewSumDetail(sumRow int, key string, sumDetailRow int) *tvie
 	return fa.app
 }
 
-func (fa *FlowApp) viewFlowDetail(sumRow int, key string, sumDetailRow int) *tview.Application {
+func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tview.Application {
 	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
-		SetContent(&flowKeyHeaderTable{fds: fa.fds, key: key})
+		SetContent(&flowKeyHeaderTable{fds: fa.fds, sumID: sumID})
 
 	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowDetailTable{fds: fa.fds, key: key}).SetFixed(1, 0)
+		SetContent(&flowDetailTable{fds: fa.fds, flowID: flowID}).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
-			fa.viewSumDetail(sumRow, key, sumDetailRow)
+			fa.viewSumDetail(sumID, sumRow, sumDetailRow)
 			return nil
 		}
 		return event

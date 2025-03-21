@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/rivo/tview"
@@ -11,33 +10,37 @@ import (
 // FlowDetailTableHeader is a table for displaying flow details header
 type flowKeyHeaderTable struct {
 	tview.TableContentReadOnly
-	fds *flowdata.FlowDataStore
-	key string
+	fds   *flowdata.FlowDataStore
+	fs    *flowdata.FlowSum
+	sumID int
 }
 
 func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
 		return hdrCell(keyCols[column], 1, 1)
 	}
-	keyVals := strings.Split(fdt.key, "|")
 	switch column {
 	case SUMCOL_SRC_NAMESPACE:
-		return valCell(keyVals[SUMCOL_SRC_NAMESPACE], 1, 1)
+		return valCell(fdt.fs.SourceNamespace, 1, 1)
 	case SUMCOL_SRC_NAME:
-		return valCell(keyVals[SUMCOL_SRC_NAME], 1, 2)
+		return valCell(fdt.fs.SourceName, 1, 2)
 	case SUMCOL_DST_NAMESPACE:
-		return valCell(keyVals[SUMCOL_DST_NAMESPACE], 1, 1)
+		return valCell(fdt.fs.DestNamespace, 1, 1)
 	case SUMCOL_DST_NAME:
-		return valCell(keyVals[SUMCOL_DST_NAME], 1, 2)
+		return valCell(fdt.fs.DestName, 1, 2)
 	case SUMCOL_PROTO:
-		return valCell(keyVals[SUMCOL_PROTO], 1, 0)
+		return valCell(fdt.fs.Protocol, 1, 0)
 	case SUMCOL_PORT:
-		return valCell(keyVals[SUMCOL_PORT], 1, 0)
+		return valCell(intos(fdt.fs.DestPort), 1, 0)
 	}
 	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))
 }
 
 func (fdt *flowKeyHeaderTable) GetRowCount() int {
+	fdt.fs = fdt.fds.GetFlowSum(fdt.sumID)
+	if fdt.fs == nil {
+		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", fdt.sumID))
+	}
 	return 2
 }
 

@@ -21,7 +21,9 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 
 	switch column {
 	case SUMCOL_SRC_NAMESPACE:
-		return valCell(fs.SourceNamespace, 1, 1)
+		tc := valCell(fs.SourceNamespace, 1, 1)
+		tc.SetReference(fs.ID)
+		return tc
 	case SUMCOL_SRC_NAME:
 		return valCell(fs.SourceName, 1, 2)
 	case SUMCOL_DST_NAMESPACE:
