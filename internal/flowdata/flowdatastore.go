@@ -16,6 +16,10 @@ type FlowDataStore struct {
 	db *storm.DB
 }
 
+type FlowItem interface {
+	GetID() int
+}
+
 func dbPath() string {
 	return filepath.Join(util.GetDataPath(), "flowdata.db")
 }
@@ -110,14 +114,6 @@ func (fds *FlowDataStore) GetAllFlowSums() []*FlowSum {
 	return fs
 }
 
-func (fds *FlowDataStore) GetFlowSumCount() int {
-	cnt, err := fds.db.Count(&FlowSum{})
-	if err != nil {
-		logrus.WithError(err).Panic("error getting flow sum count")
-	}
-	return cnt
-}
-
 func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 	fd := &FlowData{}
 	err := fds.db.One("ID", id, fd)
@@ -131,21 +127,6 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 	return fd
 }
 
-func (fds *FlowDataStore) GetAllFlowsByKey(key string) []*FlowData {
-	fs := &FlowSum{}
-	err := fds.db.One("Key", key, fs)
-	if err != nil {
-		panic(fmt.Errorf("error getting flow aggregate: %v", err))
-	}
-
-	fd := []*FlowData{}
-	err = fds.db.Find("SumID", fs.ID, &fd)
-	if err != nil {
-		panic(fmt.Errorf("error getting flow detail: %s, %v", key, fs))
-	}
-	return fd
-}
-
 func (fds *FlowDataStore) GetAllFlowsBySumID(sumID int) []*FlowData {
 	fd := []*FlowData{}
 	err := fds.db.Find("SumID", sumID, &fd)
@@ -153,19 +134,4 @@ func (fds *FlowDataStore) GetAllFlowsBySumID(sumID int) []*FlowData {
 		panic(fmt.Errorf("error getting flow detail: %d", sumID))
 	}
 	return fd
-}
-
-func (fds *FlowDataStore) GetFlowDetailCount(key string) int {
-	fs := &FlowSum{}
-	err := fds.db.One("Key", key, fs)
-	if err != nil {
-		panic(fmt.Errorf("error getting flow aggregate: %v", err))
-	}
-
-	fd := []FlowData{}
-	err = fds.db.Find("SumID", fs.ID, &fd)
-	if err != nil {
-		panic(fmt.Errorf("error getting flow detail: %s, %v", key, fs))
-	}
-	return len(fd)
 }

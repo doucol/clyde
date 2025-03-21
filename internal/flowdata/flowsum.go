@@ -33,7 +33,8 @@ type FlowSum struct {
 	DestBytesOut     uint64    `json:"dest_bytes_out"`
 }
 
-func (fs FlowSum) GetID() int {
+// flowdata.FlowItem interface
+func (fs *FlowSum) GetID() int {
 	return fs.ID
 }
 

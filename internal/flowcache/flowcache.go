@@ -8,11 +8,7 @@ import (
 	"github.com/doucol/clyde/internal/flowdata"
 )
 
-type flowItem interface {
-	GetID() int
-}
-
-type flowCacheEntry []flowItem
+type flowCacheEntry []flowdata.FlowItem
 
 type FlowCache struct {
 	fds *flowdata.FlowDataStore

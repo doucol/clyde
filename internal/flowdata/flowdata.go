@@ -146,7 +146,8 @@ type FlowData struct {
 	FlowResponse `storm:"inline"`
 }
 
-func (fd FlowData) GetID() int {
+// flowdata.FlowItem interface
+func (fd *FlowData) GetID() int {
 	return fd.ID
 }
 
