@@ -32,7 +32,7 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC {
+		if event.Key() == tcell.KeyCtrlC || (event.Key() == tcell.KeyRune && event.Rune() == 'q') {
 			fa.Stop()
 			cmdctx.Cancel()
 			return nil
