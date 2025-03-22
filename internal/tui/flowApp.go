@@ -156,14 +156,14 @@ func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tvie
 	fd := fa.fds.GetFlowDetail(flowID)
 	fdht := NewFlowDetailHeaderTable(fd)
 	tableDetailHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(fdht)
-	labels := tview.NewTextView()
-	labels.SetText(fmt.Sprintf("SRC LABELS: %s\n\nDST LABELS: %s", fd.SourceLabels, fd.DestLabels)).
-		SetBorder(true).SetTitle("Labels")
 
-	// tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-	// 	SetContent(&flowDetailTable{fds: fa.fds, flowID: flowID}).SetFixed(1, 0)
+	viewText := fmt.Sprintf("SRC LABELS: %s\n\nDST LABELS: %s\n\nPolicy Hits Enforced:\n\n%sPolicy Hits Pending:\n\n%s",
+		fd.SourceLabels, fd.DestLabels, policyHitsToString(fd.Policies.Enforced), policyHitsToString(fd.Policies.Pending))
 
-	labels.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	moreDetails := tview.NewTextView()
+	moreDetails.SetText(viewText).SetBorder(true).SetTitle("More Details")
+
+	moreDetails.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			fa.viewSumDetail(sumID, sumRow, sumDetailRow)
 			return nil
@@ -175,7 +175,33 @@ func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tvie
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
 	flex.AddItem(tableDetailHeader, 6, 1, false)
-	flex.AddItem(labels, 0, 1, true)
+	flex.AddItem(moreDetails, 0, 1, true)
 	fa.app.SetRoot(flex, true)
 	return fa.app
+}
+
+func policyHitsToString(policyHits []*flowdata.PolicyHit) string {
+	var s string
+	for _, ph := range policyHits {
+		s += fmt.Sprintf("%s\n", policyHitToString(ph))
+	}
+	return s
+}
+
+func policyHitToString(ph *flowdata.PolicyHit) string {
+	phs := fmt.Sprintf("Kind: %s\nName: %s\nNamespace: %s\nTier: %s\nAction: %s\nPolicyIndex: %d\nRuleIndex: %d\n",
+		ph.Kind, ph.Name, ph.Namespace, ph.Tier, ph.Action, ph.PolicyIndex, ph.RuleIndex)
+	if ph.Trigger != nil {
+		phs += "\nTriggers:\n" + policyHitTriggerToString(ph.Trigger)
+	}
+	return phs
+}
+
+func policyHitTriggerToString(ph *flowdata.PolicyHit) string {
+	phs := fmt.Sprintf("\tKind: %s\n\tName: %s\n\tNamespace: %s\n\tTier: %s\n\tAction: %s\n\tPolicyIndex: %d\n\tRuleIndex: %d\n",
+		ph.Kind, ph.Name, ph.Namespace, ph.Tier, ph.Action, ph.PolicyIndex, ph.RuleIndex)
+	if ph.Trigger != nil {
+		phs += "\n\n" + policyHitTriggerToString(ph.Trigger)
+	}
+	return phs
 }
