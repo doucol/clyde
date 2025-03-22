@@ -55,7 +55,7 @@ func (fdt *flowDetailHeaderTable) GetCell(row, column int) *tview.TableCell {
 	case PACK_IN_OUT_BYTE_IN_OUT:
 		return valCell(fmt.Sprintf("%d / %d - %d / %d", fd.PacketsIn, fd.PacketsOut, fd.BytesIn, fd.BytesOut), 1, 0)
 	case ACTION:
-		return valCell(fd.Action, 1, 0)
+		return actionCell(fd.Action)
 	}
 	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))
 }

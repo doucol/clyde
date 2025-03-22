@@ -47,7 +47,7 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 	case DTLCOL_BYTE_OUT:
 		return valCell(intos(fd.BytesOut), 1, 0)
 	case DTLCOL_ACTION:
-		return valCell(fd.Action, 1, 0)
+		return actionCell(fd.Action)
 	}
 
 	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))

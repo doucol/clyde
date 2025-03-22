@@ -58,21 +58,21 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 	case SUMCOL_DST_BYTE_OUT:
 		return valCell(uintos(fs.DestBytesOut), 1, 1)
 	case SUMCOL_ACTION:
-		tc := valCell(fs.Action, 1, 0)
-		setSumCellStyle(fs, tc)
-		return tc
+		return actionCell(fs.Action)
 	}
 
 	return nil
 }
 
-func setSumCellStyle(fs *flowdata.FlowSum, tc *tview.TableCell) {
+func actionCell(action string) *tview.TableCell {
+	tc := valCell(action, 1, 0)
 	color := tcell.ColorLightSkyBlue
-	if strings.ToLower(fs.Action) == "deny" {
+	if strings.ToLower(action) == "deny" {
 		color = tcell.ColorOrangeRed
 	}
 	tc.SetTextColor(color)
 	tc.SetSelectedStyle(selectedStyle.Foreground(color))
+	return tc
 }
 
 func (fst *flowSumTable) GetRowCount() int {
