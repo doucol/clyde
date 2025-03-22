@@ -83,6 +83,7 @@ func intos(v int64) string {
 }
 
 func tf(t time.Time) string {
+	// TODO: This turned out to be too long, need to format diff
 	// return t.In(localLoc).Format(time.RFC3339)
 	return t.Format(time.RFC3339)
 }

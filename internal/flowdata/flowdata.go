@@ -2,6 +2,7 @@ package flowdata
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -140,9 +141,8 @@ type FlowResponse struct {
 }
 
 type FlowData struct {
-	ID           int    `json:"id" storm:"id,increment"`
-	SumID        int    `json:"sum_id" storm:"index"`
-	sumKey       string `json:"-" storm:"-"`
+	ID           int `json:"id" storm:"id,increment"`
+	SumID        int `json:"sum_id" storm:"index"`
 	FlowResponse `storm:"inline"`
 }
 
@@ -152,9 +152,6 @@ func (fd *FlowData) GetID() int {
 }
 
 func (fd *FlowData) SumKey() string {
-	if fd.sumKey != "" {
-		return fd.sumKey
-	}
-	fd.sumKey = fmt.Sprintf("%s|%s|%s|%s|%s|%d", fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fd.DestPort)
-	return fd.sumKey
+	key := []string{fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fmt.Sprint(fd.DestPort)}
+	return strings.Join(key, "|")
 }

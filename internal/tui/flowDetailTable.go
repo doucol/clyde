@@ -10,9 +10,8 @@ import (
 // FlowDetailTable is a table for displaying flow details.
 type flowDetailTable struct {
 	tview.TableContentReadOnly
-	fds    *flowdata.FlowDataStore
-	flowID int
-	fd     *flowdata.FlowData
+	fd  *flowdata.FlowData
+	phs []*flowdata.PolicyHit
 }
 
 func (fdt *flowDetailTable) GetCell(row, column int) *tview.TableCell {
@@ -47,10 +46,6 @@ func (fdt *flowDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowDetailTable) GetRowCount() int {
-	fdt.fd = fdt.fds.GetFlowDetail(fdt.flowID)
-	if fdt.fd == nil {
-		panic(fmt.Errorf("flowDetailTable: flow with ID %d not found", fdt.flowID))
-	}
 	return 2
 }
 

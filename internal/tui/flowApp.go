@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -144,7 +145,7 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 
 	fa.setTheme()
 	flex := tview.NewFlex()
-	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary Detail")
 	flex.AddItem(tableKeyHeader, 6, 1, false)
 	flex.AddItem(tableData, 0, 1, true)
 	fa.app.SetRoot(flex, true)
@@ -152,13 +153,17 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 }
 
 func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tview.Application {
-	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
-		SetContent(&flowKeyHeaderTable{fds: fa.fds, sumID: sumID})
+	fd := fa.fds.GetFlowDetail(flowID)
+	fdht := NewFlowDetailHeaderTable(fd)
+	tableDetailHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(fdht)
+	labels := tview.NewTextView()
+	labels.SetText(fmt.Sprintf("SRC LABELS: %s\n\nDST LABELS: %s", fd.SourceLabels, fd.DestLabels)).
+		SetBorder(true).SetTitle("Labels")
 
-	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowDetailTable{fds: fa.fds, flowID: flowID}).SetFixed(1, 0)
+	// tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
+	// 	SetContent(&flowDetailTable{fds: fa.fds, flowID: flowID}).SetFixed(1, 0)
 
-	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	labels.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			fa.viewSumDetail(sumID, sumRow, sumDetailRow)
 			return nil
@@ -169,8 +174,8 @@ func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tvie
 	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
-	flex.AddItem(tableKeyHeader, 6, 1, false)
-	flex.AddItem(tableData, 0, 1, true)
+	flex.AddItem(tableDetailHeader, 6, 1, false)
+	flex.AddItem(labels, 0, 1, true)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }
