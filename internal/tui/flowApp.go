@@ -87,9 +87,48 @@ func (fa *FlowApp) Stop() {
 	}
 }
 
+func newTable() *tview.Table {
+	t := tview.NewTable().SetBorders(false).SetSelectable(false, false)
+	applyTheme(t)
+	return t
+}
+
+var (
+	bgColor       = tcell.ColorBlack
+	textColor     = tcell.ColorLightGray
+	borderColor   = tcell.ColorDarkSlateGray
+	titleColor    = tcell.ColorWhite
+	selectedStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue)
+)
+
+func applyTheme(components ...tview.Primitive) {
+	for _, p := range components {
+		switch c := p.(type) {
+		case *tview.Flex:
+			c.SetBackgroundColor(bgColor)
+			c.SetTitleColor(titleColor)
+			c.SetBorderColor(borderColor)
+		case *tview.Table:
+			c.SetBackgroundColor(bgColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+		case *tview.TextView:
+			c.SetBackgroundColor(bgColor)
+			c.SetTextColor(textColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+		case *tview.Box:
+			c.SetBackgroundColor(bgColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+		}
+	}
+}
+
 func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
-	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0)
+	tableData := newTable().SetBorders(false).SetSelectable(true, false).
+		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0).
+		SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue))
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
@@ -107,20 +146,21 @@ func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 		tableData.Select(selectRow, 0)
 	})
 
-	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary")
 	flex.AddItem(tableData, 0, 1, true)
+	applyTheme(flex, tableData)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }
 
 func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Application {
-	tableKeyHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).
+	tableKeyHeader := newTable().SetBorders(true).SetSelectable(false, false).
 		SetContent(&flowKeyHeaderTable{fds: fa.fds, sumID: sumID})
 
 	dt := &flowSumDetailTable{fds: fa.fds, sumID: sumID}
-	tableData := tview.NewTable().SetBorders(false).SetSelectable(true, false).
+	tableData := newTable().SetBorders(false).SetSelectable(true, false).
+		SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue)).
 		SetContent(dt).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -143,11 +183,11 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 		tableData.Select(sumDetailRow, 0)
 	})
 
-	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary Detail")
 	flex.AddItem(tableKeyHeader, 6, 1, false)
 	flex.AddItem(tableData, 0, 1, true)
+	applyTheme(flex, tableKeyHeader, tableData)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }
@@ -155,7 +195,7 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tview.Application {
 	fd := fa.fds.GetFlowDetail(flowID)
 	fdht := NewFlowDetailHeaderTable(fd)
-	tableDetailHeader := tview.NewTable().SetBorders(true).SetSelectable(true, false).SetContent(fdht)
+	tableDetailHeader := newTable().SetBorders(true).SetSelectable(false, false).SetContent(fdht)
 
 	viewText := fmt.Sprintf("SRC LABELS: %s\n\nDST LABELS: %s\n\nPolicy Hits Enforced:\n\n%sPolicy Hits Pending:\n\n%s",
 		fd.SourceLabels, fd.DestLabels, policyHitsToString(fd.Policies.Enforced), policyHitsToString(fd.Policies.Pending))
@@ -171,11 +211,11 @@ func (fa *FlowApp) viewFlowDetail(sumID, flowID, sumRow, sumDetailRow int) *tvie
 		return event
 	})
 
-	fa.setTheme()
 	flex := tview.NewFlex()
 	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Detail")
 	flex.AddItem(tableDetailHeader, 6, 1, false)
 	flex.AddItem(moreDetails, 0, 1, true)
+	applyTheme(flex, tableDetailHeader, moreDetails)
 	fa.app.SetRoot(flex, true)
 	return fa.app
 }

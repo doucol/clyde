@@ -49,8 +49,9 @@ var (
 	dtlCols = []string{"START TIME", "END TIME", "SRC LABELS", "DST LABELS", "REPORTER", "PACK IN", "PACK OUT", "BYTE IN", "BYTE OUT", "ACTION"}
 	// hdrStyle = tcell.Style{}.Normal().Background(tcell.ColorBlack).Foreground(tcell.ColorWhite).Bold(true)
 	// valStyle = tcell.Style{}.Normal().Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
-	hdrStyle = tcell.Style{}.Bold(true)
-	valStyle = tcell.Style{}
+	hdrStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor).Bold(true).Underline(false)
+	valStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
+	selStyle = tcell.StyleDefault
 	localLoc *time.Location
 )
 

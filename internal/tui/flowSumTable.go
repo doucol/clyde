@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -55,10 +58,21 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 	case SUMCOL_DST_BYTE_OUT:
 		return valCell(uintos(fs.DestBytesOut), 1, 1)
 	case SUMCOL_ACTION:
-		return valCell(fs.Action, 1, 0)
+		tc := valCell(fs.Action, 1, 0)
+		setSumCellStyle(fs, tc)
+		return tc
 	}
 
 	return nil
+}
+
+func setSumCellStyle(fs *flowdata.FlowSum, tc *tview.TableCell) {
+	color := tcell.ColorLightSkyBlue
+	if strings.ToLower(fs.Action) == "deny" {
+		color = tcell.ColorOrangeRed
+	}
+	tc.SetTextColor(color)
+	tc.SetSelectedStyle(selectedStyle.Foreground(color))
 }
 
 func (fst *flowSumTable) GetRowCount() int {
