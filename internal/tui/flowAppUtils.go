@@ -21,17 +21,17 @@ var (
 )
 
 func setTheme() {
-	tview.Styles.PrimitiveBackgroundColor = tcell.ColorBlack
-	tview.Styles.ContrastBackgroundColor = tcell.ColorBlack
-	tview.Styles.MoreContrastBackgroundColor = tcell.ColorBlack
-	tview.Styles.PrimaryTextColor = tcell.ColorWhite
-	tview.Styles.BorderColor = tcell.ColorBlue
-	tview.Styles.TitleColor = tcell.ColorWhite
-	tview.Styles.GraphicsColor = tcell.ColorWhite
-	tview.Styles.SecondaryTextColor = tcell.ColorWhite
-	tview.Styles.TertiaryTextColor = tcell.ColorWhite
-	tview.Styles.InverseTextColor = tcell.ColorWhite
-	tview.Styles.ContrastSecondaryTextColor = tcell.ColorWhite
+	tview.Styles.PrimitiveBackgroundColor = bgColor
+	tview.Styles.ContrastBackgroundColor = bgColor
+	tview.Styles.MoreContrastBackgroundColor = bgColor
+	tview.Styles.PrimaryTextColor = titleColor
+	tview.Styles.BorderColor = borderColor
+	tview.Styles.TitleColor = titleColor
+	tview.Styles.GraphicsColor = titleColor
+	tview.Styles.SecondaryTextColor = titleColor
+	tview.Styles.TertiaryTextColor = titleColor
+	tview.Styles.InverseTextColor = titleColor
+	tview.Styles.ContrastSecondaryTextColor = titleColor
 }
 
 func applyTheme(components ...tview.Primitive) {
