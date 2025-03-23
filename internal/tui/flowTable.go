@@ -44,15 +44,10 @@ const (
 )
 
 var (
-	keyCols = []string{"SRC NAMESPACE", "SRC NAME", "DST NAMESPACE", "DST NAME", "PROTO", "PORT"}
-	datCols = []string{"SRC COUNT", "DST COUNT", "SRC PACK IN", "SRC PACK OUT", "SRC BYTE IN", "SRC BYTE OUT", "DST PACK IN", "DST PACK OUT", "DST BYTE IN", "DST BYTE OUT", "ACTION"}
-	sumCols = append(keyCols, datCols...)
-	dtlCols = []string{"START TIME", "END TIME", "SRC LABELS", "DST LABELS", "REPORTER", "PACK IN", "PACK OUT", "BYTE IN", "BYTE OUT", "ACTION"}
-	// hdrStyle = tcell.Style{}.Normal().Background(tcell.ColorBlack).Foreground(tcell.ColorWhite).Bold(true)
-	// valStyle = tcell.Style{}.Normal().Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
-	hdrStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor).Bold(true).Underline(false)
-	valStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
-	selStyle = tcell.StyleDefault
+	keyCols  = []string{"SRC NAMESPACE", "SRC NAME", "DST NAMESPACE", "DST NAME", "PROTO", "PORT"}
+	datCols  = []string{"SRC COUNT", "DST COUNT", "SRC PACK IN", "SRC PACK OUT", "SRC BYTE IN", "SRC BYTE OUT", "DST PACK IN", "DST PACK OUT", "DST BYTE IN", "DST BYTE OUT", "ACTION"}
+	sumCols  = append(keyCols, datCols...)
+	dtlCols  = []string{"START TIME", "END TIME", "SRC LABELS", "DST LABELS", "REPORTER", "PACK IN", "PACK OUT", "BYTE IN", "BYTE OUT", "ACTION"}
 	localLoc *time.Location
 )
 
@@ -69,11 +64,11 @@ func cell(val string, width, exp int) *tview.TableCell {
 }
 
 func valCell(val string, width, exp int) *tview.TableCell {
-	return cell(val, width, exp).SetStyle(valStyle)
+	return cell(val, width, exp).SetStyle(tcellValStyle)
 }
 
 func hdrCell(val string, width, exp int) *tview.TableCell {
-	return cell(val, width, exp).SetStyle(hdrStyle)
+	return cell(val, width, exp).SetStyle(tcellHdrStyle)
 }
 
 func actionCell(action string) *tview.TableCell {

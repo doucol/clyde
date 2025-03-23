@@ -38,7 +38,7 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 			return nil
 		}
 		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
-			return nil
+			return event
 		}
 		return event
 	})
@@ -65,11 +65,6 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
-}
-
-func filterModal() {
-	// modal := tview.NewModal()
-	// form := tview.NewForm()
 }
 
 func (fa *FlowApp) setTheme() {
@@ -106,7 +101,9 @@ var (
 	textColor     = tcell.ColorLightGray
 	borderColor   = tcell.ColorDarkSlateGray
 	titleColor    = tcell.ColorWhite
-	selectedStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue)
+	selectedStyle = tcell.StyleDefault.Foreground(titleColor).Background(tcell.ColorDarkBlue)
+	tcellValStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
+	tcellHdrStyle = tcellValStyle.Bold(true).Underline(false)
 )
 
 func applyTheme(components ...tview.Primitive) {
