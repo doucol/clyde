@@ -2,6 +2,7 @@ package flowcache
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/doucol/clyde/internal/cache"
@@ -15,7 +16,10 @@ type FlowCache struct {
 	c   *cache.Cache[string, flowCacheEntry]
 }
 
-const flowSumCacheName = "flowSums"
+const (
+	flowSumCacheName = "flowSums"
+	flowDataBySumID  = "flowsBySumID"
+)
 
 func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
 	fc := &FlowCache{fds: fds, c: cache.New[string, flowCacheEntry]()}
@@ -46,8 +50,35 @@ func (fc *FlowCache) GetFlowSums() []*flowdata.FlowSum {
 	return []*flowdata.FlowSum{}
 }
 
+func (fc *FlowCache) GetFlowsBySumID(sumID int) []*flowdata.FlowData {
+	key := fmt.Sprintf("%s-%d", flowDataBySumID, sumID)
+	if flows, ok := fc.c.Get(key); ok {
+		fd := make([]*flowdata.FlowData, len(flows))
+		for i, f := range flows {
+			fd[i] = f.(*flowdata.FlowData)
+		}
+		return fd
+	}
+	fce := fc.cacheFlowsBySumID(key, sumID)
+	flows := make([]*flowdata.FlowData, len(fce))
+	for i, f := range fce {
+		flows[i] = f.(*flowdata.FlowData)
+	}
+	return flows
+}
+
 func (fc *FlowCache) refreshCache() {
 	fc.cacheFlowSums()
+}
+
+func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) flowCacheEntry {
+	af := fc.fds.GetFlowsBySumID(sumID)
+	flows := make(flowCacheEntry, len(af))
+	for i, f := range af {
+		flows[i] = f
+	}
+	fc.c.SetTTL(key, flows, 2*time.Second)
+	return flows
 }
 
 func (fc *FlowCache) cacheFlowSums() flowCacheEntry {

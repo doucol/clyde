@@ -127,7 +127,7 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 	return fd
 }
 
-func (fds *FlowDataStore) GetAllFlowsBySumID(sumID int) []*FlowData {
+func (fds *FlowDataStore) GetFlowsBySumID(sumID int) []*FlowData {
 	fd := []*FlowData{}
 	err := fds.db.Find("SumID", sumID, &fd)
 	if err != nil {

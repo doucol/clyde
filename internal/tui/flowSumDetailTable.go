@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/rivo/tview"
 )
@@ -10,7 +11,7 @@ import (
 // FlowDetailTable is a table for displaying flow details.
 type flowSumDetailTable struct {
 	tview.TableContentReadOnly
-	fds   *flowdata.FlowDataStore
+	fc    *flowcache.FlowCache
 	flows []*flowdata.FlowData
 	sumID int
 }
@@ -54,7 +55,7 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
-	fdt.flows = fdt.fds.GetAllFlowsBySumID(fdt.sumID)
+	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.sumID)
 	return len(fdt.flows) + 1
 }
 

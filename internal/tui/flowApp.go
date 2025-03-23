@@ -158,7 +158,7 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 	tableKeyHeader := newTable().SetBorders(true).SetSelectable(false, false).
 		SetContent(&flowKeyHeaderTable{fds: fa.fds, sumID: sumID})
 
-	dt := &flowSumDetailTable{fds: fa.fds, sumID: sumID}
+	dt := &flowSumDetailTable{fc: fa.fc, sumID: sumID}
 	tableData := newTable().SetBorders(false).SetSelectable(true, false).
 		SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue)).
 		SetContent(dt).SetFixed(1, 0)
