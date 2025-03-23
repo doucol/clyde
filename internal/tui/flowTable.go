@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -73,6 +74,17 @@ func valCell(val string, width, exp int) *tview.TableCell {
 
 func hdrCell(val string, width, exp int) *tview.TableCell {
 	return cell(val, width, exp).SetStyle(hdrStyle)
+}
+
+func actionCell(action string) *tview.TableCell {
+	tc := valCell(action, 1, 0)
+	color := tcell.ColorLightSkyBlue
+	if strings.ToLower(action) == "deny" {
+		color = tcell.ColorOrangeRed
+	}
+	tc.SetTextColor(color)
+	tc.SetSelectedStyle(selectedStyle.Foreground(color))
+	return tc
 }
 
 func uintos(v uint64) string {

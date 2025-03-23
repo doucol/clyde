@@ -37,6 +37,9 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 			cmdctx.Cancel()
 			return nil
 		}
+		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
+			return nil
+		}
 		return event
 	})
 
@@ -62,6 +65,11 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func filterModal() {
+	// modal := tview.NewModal()
+	// form := tview.NewForm()
 }
 
 func (fa *FlowApp) setTheme() {
@@ -112,6 +120,7 @@ func applyTheme(components ...tview.Primitive) {
 			c.SetBackgroundColor(bgColor)
 			c.SetBorderColor(borderColor)
 			c.SetTitleColor(titleColor)
+			c.SetSelectedStyle(selectedStyle)
 		case *tview.TextView:
 			c.SetBackgroundColor(bgColor)
 			c.SetTextColor(textColor)
@@ -127,8 +136,7 @@ func applyTheme(components ...tview.Primitive) {
 
 func (fa *FlowApp) viewSummary(selectRow int) *tview.Application {
 	tableData := newTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0).
-		SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue))
+		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
@@ -160,7 +168,6 @@ func (fa *FlowApp) viewSumDetail(sumID, sumRow, sumDetailRow int) *tview.Applica
 
 	dt := &flowSumDetailTable{fc: fa.fc, sumID: sumID}
 	tableData := newTable().SetBorders(false).SetSelectable(true, false).
-		SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkBlue)).
 		SetContent(dt).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -245,3 +252,90 @@ func policyHitTriggerToString(ph *flowdata.PolicyHit) string {
 	}
 	return phs
 }
+
+// package main
+//
+// import (
+// 	"github.com/gdamore/tcell/v2"
+// 	"github.com/rivo/tview"
+// )
+//
+// func main() {
+// 	app := tview.NewApplication()
+//
+// 	// Create the main layout
+// 	mainLayout := tview.NewFlex().
+// 		SetDirection(tview.FlexRow).
+// 		AddItem(tview.NewTextView().
+// 			SetTextAlign(tview.AlignCenter).
+// 			SetText("Press 'Ctrl+F' to open the form dialog"), 0, 1, false)
+//
+// 	// Create the form that will go in the modal
+// 	form := tview.NewForm().
+// 		AddInputField("Name", "", 20, nil, nil).
+// 		AddInputField("Email", "", 30, nil, nil).
+// 		AddPasswordField("Password", "", 20, '*', nil).
+// 		AddCheckbox("Send welcome email", false, nil).
+// 		AddTextArea("Notes", "", 40, 4, 0, nil).
+// 		AddButton("Save", func() {
+// 			// Save form data here
+// 			app.QueueUpdateDraw(func() {
+// 				// Close the modal
+// 				pages.SwitchToPage("main")
+// 			})
+// 		}).
+// 		AddButton("Cancel", func() {
+// 			app.QueueUpdateDraw(func() {
+// 				// Close the modal without saving
+// 				pages.SwitchToPage("main")
+// 			})
+// 		})
+//
+// 	// Style the form
+// 	form.SetBorder(true).
+// 		SetTitle("User Information").
+// 		SetTitleAlign(tview.AlignCenter).
+// 		SetBorderColor(tcell.ColorSteelBlue)
+//
+// 	// Create a flex container for the modal to center the form
+// 	modalFlex := tview.NewFlex().
+// 		SetDirection(tview.FlexRow).
+// 		AddItem(nil, 0, 1, false).
+// 		AddItem(tview.NewFlex().
+// 			SetDirection(tview.FlexColumn).
+// 			AddItem(nil, 0, 1, false).
+// 			AddItem(form, 50, 1, true). // Width of 50
+// 			AddItem(nil, 0, 1, false),
+// 			10, 1, true). // Height of 10
+// 		AddItem(nil, 0, 1, false)
+//
+// 	// Create modal frame with semi-transparent background
+// 	modal := tview.NewFlex().
+// 		SetBackgroundColor(tcell.ColorBlack.WithAlpha(192)) // Semi-transparent black
+// 	modal.AddItem(modalFlex, 0, 1, true)
+//
+// 	// Create pages to switch between main and modal
+// 	pages := tview.NewPages().
+// 		AddPage("main", mainLayout, true, true).
+// 		AddPage("modal", modal, true, false) // Modal starts hidden
+//
+// 	// Add keyboard shortcuts
+// 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+// 		if event.Key() == tcell.KeyCtrlF {
+// 			// Show the modal when Ctrl+F is pressed
+// 			pages.ShowPage("modal")
+// 			return nil
+// 		} else if event.Key() == tcell.KeyEscape {
+// 			// Hide the modal when Escape is pressed
+// 			if pages.HasPage("modal") {
+// 				pages.HidePage("modal")
+// 				return nil
+// 			}
+// 		}
+// 		return event
+// 	})
+//
+// 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
+// 		panic(err)
+// 	}
+// }

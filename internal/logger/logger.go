@@ -9,6 +9,7 @@ import (
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/q"
 	"github.com/doucol/clyde/internal/util"
+	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
 var debugLog = os.Getenv("DEBUG_LOG") != ""
@@ -19,8 +20,9 @@ type LogMsg struct {
 }
 
 type LogStore struct {
-	db *storm.DB
-	mu sync.Mutex
+	db   *storm.DB
+	msgs chan []byte
+	wg   *sync.WaitGroup
 }
 
 func logPath() string {
@@ -37,7 +39,26 @@ func New() (*LogStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &LogStore{db: db}, nil
+	msgs := make(chan []byte, 1000)
+	wg := &sync.WaitGroup{}
+	ls := &LogStore{db: db, msgs: msgs, wg: wg}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for p := range msgs {
+			if len(p) == 0 {
+				return
+			}
+			if debugLog {
+				_, err := os.Stderr.Write(p)
+				runtime.HandleError(err)
+			} else {
+				lm := &LogMsg{Message: string(p)}
+				runtime.HandleError(ls.db.Save(lm))
+			}
+		}
+	}()
+	return ls, nil
 }
 
 func Clear() error {
@@ -48,22 +69,24 @@ func Clear() error {
 	return nil
 }
 
+func (l *LogStore) Stop() {
+	l.msgs <- []byte{}
+	l.wg.Wait()
+}
+
 func (l *LogStore) Close() error {
 	return l.db.Close()
 }
 
 // [Writer] interface
 func (l *LogStore) Write(p []byte) (n int, err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if debugLog {
-		return os.Stderr.Write(p)
+	length := len(p)
+	if length > 0 {
+		msgb := make([]byte, length)
+		copy(msgb, p)
+		l.msgs <- msgb
 	}
-	err = l.db.Save(&LogMsg{Message: string(p)})
-	if err != nil {
-		return 0, err
-	}
-	return len(p), nil
+	return length, nil
 }
 
 func (l *LogStore) Dump(w io.Writer) error {

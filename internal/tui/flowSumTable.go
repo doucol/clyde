@@ -1,11 +1,8 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -62,17 +59,6 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 	}
 
 	return nil
-}
-
-func actionCell(action string) *tview.TableCell {
-	tc := valCell(action, 1, 0)
-	color := tcell.ColorLightSkyBlue
-	if strings.ToLower(action) == "deny" {
-		color = tcell.ColorOrangeRed
-	}
-	tc.SetTextColor(color)
-	tc.SetSelectedStyle(selectedStyle.Foreground(color))
-	return tc
 }
 
 func (fst *flowSumTable) GetRowCount() int {

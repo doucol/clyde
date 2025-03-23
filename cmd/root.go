@@ -111,6 +111,7 @@ func dumpLogger() {
 	if logStore == nil {
 		return
 	}
+	logStore.Stop()
 	err := logStore.Dump(os.Stderr)
 	if err != nil {
 		panic(err)
