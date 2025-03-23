@@ -10,13 +10,16 @@ import (
 // FlowDetailTableHeader is a table for displaying flow details header
 type flowDetailHeaderTable struct {
 	tview.TableContentReadOnly
+	fds     *flowdata.FlowDataStore
 	fd      *flowdata.FlowData
+	fas     *flowAppState
 	allCols []string
 }
 
-func NewFlowDetailHeaderTable(fd *flowdata.FlowData) *flowDetailHeaderTable {
+func NewFlowDetailHeaderTable(fds *flowdata.FlowDataStore, fas *flowAppState) *flowDetailHeaderTable {
 	return &flowDetailHeaderTable{
-		fd:      fd,
+		fds:     fds,
+		fas:     fas,
 		allCols: []string{"SRC NAMESPACE / NAME", "DST NAMESPACE / NAME", "RPT / PROTO:PORT", "START TIME", "END TIME", "P I/O - B I/O", "ACTION"},
 	}
 }
@@ -61,6 +64,7 @@ func (fdt *flowDetailHeaderTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowDetailHeaderTable) GetRowCount() int {
+	fdt.fd = fdt.fds.GetFlowDetail(fdt.fas.FlowID)
 	return 2
 }
 

@@ -10,9 +10,9 @@ import (
 // FlowDetailTableHeader is a table for displaying flow details header
 type flowKeyHeaderTable struct {
 	tview.TableContentReadOnly
-	fds   *flowdata.FlowDataStore
-	fs    *flowdata.FlowSum
-	sumID int
+	fds *flowdata.FlowDataStore
+	fs  *flowdata.FlowSum
+	fas *flowAppState
 }
 
 func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
@@ -37,9 +37,9 @@ func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowKeyHeaderTable) GetRowCount() int {
-	fdt.fs = fdt.fds.GetFlowSum(fdt.sumID)
+	fdt.fs = fdt.fds.GetFlowSum(fdt.fas.SumID)
 	if fdt.fs == nil {
-		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", fdt.sumID))
+		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", fdt.fas.SumID))
 	}
 	return 2
 }

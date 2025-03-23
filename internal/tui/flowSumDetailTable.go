@@ -13,7 +13,7 @@ type flowSumDetailTable struct {
 	tview.TableContentReadOnly
 	fc    *flowcache.FlowCache
 	flows []*flowdata.FlowData
-	sumID int
+	fas   *flowAppState
 }
 
 func (fdt *flowSumDetailTable) CurrentID() {
@@ -55,7 +55,7 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
-	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.sumID)
+	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.fas.SumID)
 	return len(fdt.flows) + 1
 }
 

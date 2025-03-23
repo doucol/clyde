@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -73,9 +72,9 @@ func hdrCell(val string, width, exp int) *tview.TableCell {
 
 func actionCell(action string) *tview.TableCell {
 	tc := valCell(action, 1, 0)
-	color := tcell.ColorLightSkyBlue
+	color := allowColor
 	if strings.ToLower(action) == "deny" {
-		color = tcell.ColorOrangeRed
+		color = denyColor
 	}
 	tc.SetTextColor(color)
 	tc.SetSelectedStyle(selectedStyle.Foreground(color))
