@@ -20,10 +20,10 @@ const (
 )
 
 type flowAppState struct {
-	SumID        int
-	SumRow       int
-	SumDetailRow int
-	FlowID       int
+	SumID   int
+	SumRow  int
+	FlowID  int
+	FlowRow int
 }
 
 type FlowApp struct {
@@ -57,7 +57,8 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 			return nil
 		}
 		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
-			return event
+			fa.filterModal()
+			return nil
 		}
 		return event
 	})
@@ -95,87 +96,3 @@ func (fa *FlowApp) Stop() {
 		fa.stopped = true
 	}
 }
-
-func (fa *FlowApp) viewPage(pageName string) {
-	fa.pages.SwitchToPage(pageName)
-}
-
-// func main() {
-// 	app := tview.NewApplication()
-//
-// 	// Create the main layout
-// 	mainLayout := tview.NewFlex().
-// 		SetDirection(tview.FlexRow).
-// 		AddItem(tview.NewTextView().
-// 			SetTextAlign(tview.AlignCenter).
-// 			SetText("Press 'Ctrl+F' to open the form dialog"), 0, 1, false)
-//
-// 	// Create the form that will go in the modal
-// 	form := tview.NewForm().
-// 		AddInputField("Name", "", 20, nil, nil).
-// 		AddInputField("Email", "", 30, nil, nil).
-// 		AddPasswordField("Password", "", 20, '*', nil).
-// 		AddCheckbox("Send welcome email", false, nil).
-// 		AddTextArea("Notes", "", 40, 4, 0, nil).
-// 		AddButton("Save", func() {
-// 			// Save form data here
-// 			app.QueueUpdateDraw(func() {
-// 				// Close the modal
-// 				pages.SwitchToPage("main")
-// 			})
-// 		}).
-// 		AddButton("Cancel", func() {
-// 			app.QueueUpdateDraw(func() {
-// 				// Close the modal without saving
-// 				pages.SwitchToPage("main")
-// 			})
-// 		})
-//
-// 	// Style the form
-// 	form.SetBorder(true).
-// 		SetTitle("User Information").
-// 		SetTitleAlign(tview.AlignCenter).
-// 		SetBorderColor(tcell.ColorSteelBlue)
-//
-// 	// Create a flex container for the modal to center the form
-// 	modalFlex := tview.NewFlex().
-// 		SetDirection(tview.FlexRow).
-// 		AddItem(nil, 0, 1, false).
-// 		AddItem(tview.NewFlex().
-// 			SetDirection(tview.FlexColumn).
-// 			AddItem(nil, 0, 1, false).
-// 			AddItem(form, 50, 1, true). // Width of 50
-// 			AddItem(nil, 0, 1, false),
-// 			10, 1, true). // Height of 10
-// 		AddItem(nil, 0, 1, false)
-//
-// 	// Create modal frame with semi-transparent background
-// 	modal := tview.NewFlex().
-// 		SetBackgroundColor(tcell.ColorBlack.WithAlpha(192)) // Semi-transparent black
-// 	modal.AddItem(modalFlex, 0, 1, true)
-//
-// 	// Create pages to switch between main and modal
-// 	pages := tview.NewPages().
-// 		AddPage("main", mainLayout, true, true).
-// 		AddPage("modal", modal, true, false) // Modal starts hidden
-//
-// 	// Add keyboard shortcuts
-// 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-// 		if event.Key() == tcell.KeyCtrlF {
-// 			// Show the modal when Ctrl+F is pressed
-// 			pages.ShowPage("modal")
-// 			return nil
-// 		} else if event.Key() == tcell.KeyEscape {
-// 			// Hide the modal when Escape is pressed
-// 			if pages.HasPage("modal") {
-// 				pages.HidePage("modal")
-// 				return nil
-// 			}
-// 		}
-// 		return event
-// 	})
-//
-// 	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
-// 		panic(err)
-// 	}
-// }

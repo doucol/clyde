@@ -16,7 +16,7 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 			fa.fas.SumRow, _ = tableData.GetSelection()
 			if fa.fas.SumRow > 0 {
 				fa.fas.SumID = tableData.GetCell(fa.fas.SumRow, 0).GetReference().(int)
-				fa.viewPage(pageSumDetailName)
+				fa.pages.SwitchToPage(pageSumDetailName)
 				return nil
 			}
 		}
@@ -45,21 +45,21 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEnter:
-			fa.fas.SumDetailRow, _ = tableData.GetSelection()
-			if fa.fas.SumDetailRow > 0 {
-				fa.fas.FlowID = tableData.GetCell(fa.fas.SumDetailRow, 0).GetReference().(int)
+			fa.fas.FlowRow, _ = tableData.GetSelection()
+			if fa.fas.FlowRow > 0 {
+				fa.fas.FlowID = tableData.GetCell(fa.fas.FlowRow, 0).GetReference().(int)
 				fa.pages.AddAndSwitchToPage(pageFlowDetailName, fa.viewFlowDetail(), true)
 				return nil
 			}
 		case tcell.KeyEscape:
-			fa.viewPage(pageSummaryName)
+			fa.pages.SwitchToPage(pageSummaryName)
 			return nil
 		}
 		return event
 	})
 
 	tableData.SetFocusFunc(func() {
-		tableData.Select(fa.fas.SumDetailRow, 0)
+		tableData.Select(fa.fas.FlowRow, 0)
 	})
 
 	flex := tview.NewFlex()
@@ -84,7 +84,7 @@ func (fa *FlowApp) viewFlowDetail() tview.Primitive {
 
 	moreDetails.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
-			fa.viewPage(pageSumDetailName)
+			fa.pages.SwitchToPage(pageSumDetailName)
 			fa.pages.RemovePage(pageFlowDetailName)
 			return nil
 		}

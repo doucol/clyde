@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/asdine/storm/v3"
+	"github.com/asdine/storm/v3/q"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -105,11 +106,58 @@ func (fds *FlowDataStore) GetFlowSum(id int) *FlowSum {
 	return fs
 }
 
-func (fds *FlowDataStore) GetAllFlowSums() []*FlowSum {
+func (fds *FlowDataStore) GetFlowSums(filter *FilterAttributes) []*FlowSum {
 	fs := []*FlowSum{}
-	err := fds.db.All(&fs)
-	if err != nil {
-		logrus.WithError(err).Panic("error getting all flow sums")
+	useFilter := filter != nil && (*filter != (FilterAttributes{}))
+	if !useFilter {
+		err := fds.db.All(&fs)
+		if err != nil {
+			logrus.WithError(err).Panic("error getting all flow sums")
+		}
+	} else {
+		matchers := []q.Matcher{}
+		if filter.Action != "" {
+			matchers = append(matchers, q.Eq("Action", filter.Action))
+		}
+		switch filter.Reporter {
+		case "Src":
+			matchers = append(matchers, q.Gt("SourceReports", 0))
+		case "Dst":
+			matchers = append(matchers, q.Gt("DestReports", 0))
+		}
+		if filter.Namespace != "" {
+			switch filter.Reporter {
+			case "Src":
+				matchers = append(matchers, q.Re("SourceNamespace", filter.Namespace))
+			case "Dst":
+				matchers = append(matchers, q.Re("DestNamespace", filter.Namespace))
+			default:
+				qor := q.Or(
+					q.Re("SourceNamespace", filter.Namespace),
+					q.Re("DestNamespace", filter.Namespace),
+				)
+				matchers = append(matchers, qor)
+			}
+		}
+		if filter.Name != "" {
+			switch filter.Reporter {
+			case "Src":
+				matchers = append(matchers, q.Re("SourceName", filter.Name))
+			case "Dst":
+				matchers = append(matchers, q.Re("DestName", filter.Name))
+			default:
+				qor := q.Or(
+					q.Re("SourceName", filter.Name),
+					q.Re("DestName", filter.Name),
+				)
+				matchers = append(matchers, qor)
+			}
+		}
+		query := fds.db.Select(matchers...)
+		err := query.Find(&fs)
+		if err != nil {
+			logrus.WithError(err).Panic("error getting all flow sums")
+		}
 	}
 	return fs
 }

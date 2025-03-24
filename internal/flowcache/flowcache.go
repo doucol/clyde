@@ -7,6 +7,7 @@ import (
 
 	"github.com/doucol/clyde/internal/cache"
 	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/doucol/clyde/internal/global"
 )
 
 type flowCacheEntry []flowdata.FlowItem
@@ -82,7 +83,8 @@ func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) flowCacheEntry {
 }
 
 func (fc *FlowCache) cacheFlowSums() flowCacheEntry {
-	afs := fc.fds.GetAllFlowSums()
+	gs := global.GetState()
+	afs := fc.fds.GetFlowSums(&gs.Filter)
 	flowSums := make(flowCacheEntry, len(afs))
 	for i, fs := range afs {
 		flowSums[i] = fs

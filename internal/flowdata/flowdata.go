@@ -146,6 +146,15 @@ type FlowData struct {
 	FlowResponse `storm:"inline"`
 }
 
+type FilterAttributes struct {
+	Action    string
+	Reporter  string
+	Namespace string
+	Name      string
+	From      time.Time
+	To        time.Time
+}
+
 // flowdata.FlowItem interface
 func (fd *FlowData) GetID() int {
 	return fd.ID
