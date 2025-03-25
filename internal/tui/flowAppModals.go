@@ -80,18 +80,17 @@ func (fa *FlowApp) filterModal() {
 		}
 
 		focusIdx, _ := form.GetFocusedItemIndex()
-		for i := range form.GetFormItemCount() {
+		for idx := 0; idx < form.GetFormItemCount(); idx += 1 {
 			style := listUnselStyle
-			if i == focusIdx {
+			if idx == focusIdx {
 				style = listSelStyle
 			}
-			item := form.GetFormItem(i)
+			item := form.GetFormItem(idx)
 			switch fi := item.(type) {
 			case *tview.DropDown:
-				logrus.Debugf("In dropdown label setter: %d, %d", i, focusIdx)
-				fi.GetLabel()
+				logrus.Debugf("In dropdown label setter: %d, %d", idx, focusIdx)
 			case *tview.InputField:
-				logrus.Debugf("In InputField label setter: %d, %d", i, focusIdx)
+				logrus.Debugf("In InputField label setter: %d, %d", idx, focusIdx)
 				fi.SetLabelStyle(style)
 			}
 		}
