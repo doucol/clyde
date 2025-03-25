@@ -70,7 +70,7 @@ func (fc *FlowCache) refreshCache() {
 func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) []*flowdata.FlowData {
 	gs := global.GetState()
 	flows := fc.fds.GetFlowsBySumID(sumID, &gs.Filter)
-	fc.flowCache.SetTTL(key, flows, 2*time.Second)
+	fc.flowCache.SetTTL(key, flows, 5*time.Second)
 	return flows
 }
 
