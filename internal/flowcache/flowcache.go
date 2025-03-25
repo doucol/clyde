@@ -53,10 +53,13 @@ func (fc *FlowCache) GetFlowSums() []*flowdata.FlowSum {
 
 func (fc *FlowCache) GetFlowsBySumID(sumID int) []*flowdata.FlowData {
 	key := fmt.Sprintf("%s-%d", flowDataBySumID, sumID)
-	if flows, ok := fc.c.Get(key); ok {
+	if flows, ok := fc.c.Get(key); ok || len(flows) > 0 {
 		fd := make([]*flowdata.FlowData, len(flows))
 		for i, f := range flows {
 			fd[i] = f.(*flowdata.FlowData)
+		}
+		if !ok {
+			go fc.cacheFlowsBySumID(key, sumID)
 		}
 		return fd
 	}
