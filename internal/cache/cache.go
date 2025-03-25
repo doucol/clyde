@@ -25,10 +25,10 @@ func (i item[V]) isExpired() bool {
 // (TTL) expiration.
 type Cache[K comparable, V any] struct {
 	items map[K]item[V] // The map storing cache items.
-	mu    sync.Mutex    // Mutex for controlling concurrent access to the cache.
+	mu    sync.RWMutex  // Mutex for controlling concurrent access to the cache.
 }
 
-// New creates a new TTLCache instance and starts a goroutine to periodically
+// New creates a new Cache instance and starts a goroutine to periodically
 // remove expired items every 5 seconds.
 func New[K comparable, V any]() *Cache[K, V] {
 	c := &Cache[K, V]{items: make(map[K]item[V])}
@@ -72,8 +72,8 @@ func (c *Cache[K, V]) SetTTL(key K, value V, ttl time.Duration) {
 
 // Get retrieves the value associated with the given key from the cache.
 func (c *Cache[K, V]) Get(key K) (V, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	item, found := c.items[key]
 	if !found {
@@ -84,7 +84,7 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 	if item.isExpired() {
 		// If the item has expired, remove it from the cache and return the
 		// value and false.
-		delete(c.items, key)
+		go c.Remove(key)
 		return item.value, false
 	}
 

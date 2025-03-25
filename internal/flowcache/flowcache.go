@@ -13,8 +13,9 @@ import (
 type flowCacheEntry []flowdata.FlowItem
 
 type FlowCache struct {
-	fds *flowdata.FlowDataStore
-	c   *cache.Cache[string, flowCacheEntry]
+	fds          *flowdata.FlowDataStore
+	flowSumCache *cache.Cache[string, []*flowdata.FlowSum]
+	flowCache    *cache.Cache[string, []*flowdata.FlowData]
 }
 
 const (
@@ -23,7 +24,11 @@ const (
 )
 
 func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
-	fc := &FlowCache{fds: fds, c: cache.New[string, flowCacheEntry]()}
+	fc := &FlowCache{
+		fds:          fds,
+		flowSumCache: cache.New[string, []*flowdata.FlowSum](),
+		flowCache:    cache.New[string, []*flowdata.FlowData](),
+	}
 	// Go refresh the cache every 2 seconds
 	go func() {
 		ticker := time.Tick(2 * time.Second)
@@ -41,58 +46,37 @@ func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
 }
 
 func (fc *FlowCache) GetFlowSums() []*flowdata.FlowSum {
-	if flowSums, ok := fc.c.Get(flowSumCacheName); ok {
-		fss := make([]*flowdata.FlowSum, len(flowSums))
-		for i, fsi := range flowSums {
-			fss[i] = fsi.(*flowdata.FlowSum)
-		}
-		return fss
+	if flowSums, ok := fc.flowSumCache.Get(flowSumCacheName); ok {
+		return flowSums
 	}
 	return []*flowdata.FlowSum{}
 }
 
 func (fc *FlowCache) GetFlowsBySumID(sumID int) []*flowdata.FlowData {
 	key := fmt.Sprintf("%s-%d", flowDataBySumID, sumID)
-	if flows, ok := fc.c.Get(key); ok || len(flows) > 0 {
-		fd := make([]*flowdata.FlowData, len(flows))
-		for i, f := range flows {
-			fd[i] = f.(*flowdata.FlowData)
-		}
+	if flows, ok := fc.flowCache.Get(key); ok || len(flows) > 0 {
 		if !ok {
 			go fc.cacheFlowsBySumID(key, sumID)
 		}
-		return fd
+		return flows
 	}
-	fce := fc.cacheFlowsBySumID(key, sumID)
-	flows := make([]*flowdata.FlowData, len(fce))
-	for i, f := range fce {
-		flows[i] = f.(*flowdata.FlowData)
-	}
-	return flows
+	return fc.cacheFlowsBySumID(key, sumID)
 }
 
 func (fc *FlowCache) refreshCache() {
 	fc.cacheFlowSums()
 }
 
-func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) flowCacheEntry {
+func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) []*flowdata.FlowData {
 	gs := global.GetState()
-	af := fc.fds.GetFlowsBySumID(sumID, &gs.Filter)
-	flows := make(flowCacheEntry, len(af))
-	for i, f := range af {
-		flows[i] = f
-	}
-	fc.c.SetTTL(key, flows, 2*time.Second)
+	flows := fc.fds.GetFlowsBySumID(sumID, &gs.Filter)
+	fc.flowCache.SetTTL(key, flows, 2*time.Second)
 	return flows
 }
 
-func (fc *FlowCache) cacheFlowSums() flowCacheEntry {
+func (fc *FlowCache) cacheFlowSums() []*flowdata.FlowSum {
 	gs := global.GetState()
-	afs := fc.fds.GetFlowSums(&gs.Filter)
-	flowSums := make(flowCacheEntry, len(afs))
-	for i, fs := range afs {
-		flowSums[i] = fs
-	}
-	fc.c.Set(flowSumCacheName, flowSums)
+	flowSums := fc.fds.GetFlowSums(&gs.Filter)
+	fc.flowSumCache.Set(flowSumCacheName, flowSums)
 	return flowSums
 }
