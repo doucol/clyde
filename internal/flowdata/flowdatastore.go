@@ -111,7 +111,7 @@ func (fds *FlowDataStore) GetFlowSums(filter *FilterAttributes) []*FlowSum {
 	useFilter := filter != nil && (*filter != (FilterAttributes{}))
 	if !useFilter {
 		err := fds.db.All(&fs)
-		if err != nil {
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
 			logrus.WithError(err).Panic("error getting all flow sums")
 		}
 	} else {
@@ -155,7 +155,7 @@ func (fds *FlowDataStore) GetFlowSums(filter *FilterAttributes) []*FlowSum {
 		}
 		query := fds.db.Select(matchers...)
 		err := query.Find(&fs)
-		if err != nil {
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
 			logrus.WithError(err).Panic("error getting all flow sums")
 		}
 	}
@@ -175,11 +175,56 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 	return fd
 }
 
-func (fds *FlowDataStore) GetFlowsBySumID(sumID int) []*FlowData {
+func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter *FilterAttributes) []*FlowData {
 	fd := []*FlowData{}
-	err := fds.db.Find("SumID", sumID, &fd)
-	if err != nil {
-		panic(fmt.Errorf("error getting flow detail: %d", sumID))
+	useFilter := filter != nil && (*filter != (FilterAttributes{}))
+	if !useFilter {
+		err := fds.db.Find("SumID", sumID, &fd)
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
+			panic(fmt.Errorf("error getting flow detail: %d, %v", sumID, err))
+		}
+	} else {
+		matchers := []q.Matcher{}
+		matchers = append(matchers, q.Eq("SumID", sumID))
+		if filter.Action != "" {
+			matchers = append(matchers, q.Eq("Action", filter.Action))
+		}
+		if filter.Reporter != "" {
+			matchers = append(matchers, q.Eq("Reporter", filter.Reporter))
+		}
+		if filter.Namespace != "" {
+			switch filter.Reporter {
+			case "Src":
+				matchers = append(matchers, q.Re("SourceNamespace", filter.Namespace))
+			case "Dst":
+				matchers = append(matchers, q.Re("DestNamespace", filter.Namespace))
+			default:
+				qor := q.Or(
+					q.Re("SourceNamespace", filter.Namespace),
+					q.Re("DestNamespace", filter.Namespace),
+				)
+				matchers = append(matchers, qor)
+			}
+		}
+		if filter.Name != "" {
+			switch filter.Reporter {
+			case "Src":
+				matchers = append(matchers, q.Re("SourceName", filter.Name))
+			case "Dst":
+				matchers = append(matchers, q.Re("DestName", filter.Name))
+			default:
+				qor := q.Or(
+					q.Re("SourceName", filter.Name),
+					q.Re("DestName", filter.Name),
+				)
+				matchers = append(matchers, qor)
+			}
+		}
+		query := fds.db.Select(matchers...)
+		err := query.Find(&fd)
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
+			panic(fmt.Errorf("error getting flow detail: %d, %v", sumID, err))
+		}
 	}
 	return fd
 }

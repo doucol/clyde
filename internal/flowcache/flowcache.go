@@ -73,7 +73,8 @@ func (fc *FlowCache) refreshCache() {
 }
 
 func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) flowCacheEntry {
-	af := fc.fds.GetFlowsBySumID(sumID)
+	gs := global.GetState()
+	af := fc.fds.GetFlowsBySumID(sumID, &gs.Filter)
 	flows := make(flowCacheEntry, len(af))
 	for i, f := range af {
 		flows[i] = f

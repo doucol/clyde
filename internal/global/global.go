@@ -12,17 +12,27 @@ type GlobalState struct {
 
 var (
 	_mu = &sync.RWMutex{}
-	_gs = &GlobalState{}
+	_gs = GlobalState{}
 )
 
 func GetState() GlobalState {
 	_mu.RLock()
 	defer _mu.RUnlock()
-	return *_gs
+	return _gs
 }
 
 func SetState(gs GlobalState) {
 	_mu.Lock()
 	defer _mu.Unlock()
-	_gs = &gs
+	_gs = gs
+}
+
+func GetFilter() flowdata.FilterAttributes {
+	return GetState().Filter
+}
+
+func SetFilter(fa flowdata.FilterAttributes) {
+	_mu.Lock()
+	defer _mu.Unlock()
+	_gs.Filter = fa
 }

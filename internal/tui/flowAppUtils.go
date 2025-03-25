@@ -9,15 +9,19 @@ import (
 )
 
 var (
-	bgColor       = tcell.ColorBlack
-	textColor     = tcell.ColorLightGray
-	borderColor   = tcell.ColorDarkSlateGray
-	titleColor    = tcell.ColorWhite
-	allowColor    = tcell.ColorLightSkyBlue
-	denyColor     = tcell.ColorOrangeRed
-	selectedStyle = tcell.StyleDefault.Foreground(titleColor).Background(tcell.ColorDarkBlue)
-	tcellValStyle = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
-	tcellHdrStyle = tcellValStyle.Bold(true).Underline(false)
+	bgColor        = tcell.ColorBlack
+	textColor      = tcell.ColorLightGray
+	borderColor    = tcell.ColorDarkSlateGray
+	titleColor     = tcell.ColorWhite
+	allowColor     = tcell.ColorLightSkyBlue
+	denyColor      = tcell.ColorOrangeRed
+	selBgColor     = tcell.ColorDarkBlue
+	selFgColor     = titleColor
+	selectedStyle  = tcell.StyleDefault.Foreground(selFgColor).Background(selBgColor)
+	tcellValStyle  = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
+	tcellHdrStyle  = tcellValStyle.Bold(true).Underline(false)
+	listUnselStyle = tcell.StyleDefault.Foreground(selFgColor).Background(selBgColor)
+	listSelStyle   = tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(selBgColor)
 )
 
 func setTheme() {
@@ -55,6 +59,29 @@ func applyTheme(components ...tview.Primitive) {
 			c.SetBackgroundColor(bgColor)
 			c.SetBorderColor(borderColor)
 			c.SetTitleColor(titleColor)
+		case *tview.DropDown:
+			c.SetBackgroundColor(bgColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+			c.SetFieldBackgroundColor(selBgColor)
+			c.SetFieldTextColor(selFgColor)
+			c.SetLabelColor(titleColor)
+			c.SetListStyles(listUnselStyle, listSelStyle)
+		case *tview.InputField:
+			c.SetBackgroundColor(bgColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+			c.SetFieldBackgroundColor(selBgColor)
+			c.SetFieldTextColor(selFgColor)
+			c.SetLabelColor(titleColor)
+		case *tview.Form:
+			c.SetBackgroundColor(bgColor)
+			c.SetBorderColor(borderColor)
+			c.SetTitleColor(titleColor)
+			c.SetFieldBackgroundColor(selBgColor)
+			c.SetFieldTextColor(selFgColor)
+			c.SetLabelColor(titleColor)
+			// c.SetFieldStyle(selectedStyle)
 		}
 	}
 }

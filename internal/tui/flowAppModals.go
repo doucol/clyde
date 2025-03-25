@@ -5,15 +5,16 @@ import (
 	"github.com/doucol/clyde/internal/global"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 func (fa *FlowApp) filterModal() {
 	const modalName = "filterModal"
 
-	gs := global.GetState()
+	filter := global.GetFilter()
 
 	actionIdx := 0
-	switch gs.Filter.Action {
+	switch filter.Action {
 	case "Deny":
 		actionIdx = 1
 	case "Allow":
@@ -21,7 +22,7 @@ func (fa *FlowApp) filterModal() {
 	}
 
 	reporterdx := 0
-	switch gs.Filter.Reporter {
+	switch filter.Reporter {
 	case "Src":
 		reporterdx = 1
 	case "Dst":
@@ -32,8 +33,8 @@ func (fa *FlowApp) filterModal() {
 	form.
 		AddDropDown("Action", []string{"All", "Deny", "Allow"}, actionIdx, nil).
 		AddDropDown("Reporter", []string{"All", "Src", "Dst"}, reporterdx, nil).
-		AddInputField("Namespace", gs.Filter.Namespace, 60, nil, nil).
-		AddInputField("Name", gs.Filter.Name, 60, nil, nil).
+		AddInputField("Namespace", filter.Namespace, 60, nil, nil).
+		AddInputField("Name", filter.Name, 60, nil, nil).
 		// AddInputField("From (yyyy/mm/ddT00:00:00Z)", "", 20, nil, nil).
 		// AddInputField("To (yyyy/mm/ddT00:00:00Z)", "", 20, nil, nil).
 		AddButton("Save", func() {
@@ -49,27 +50,52 @@ func (fa *FlowApp) filterModal() {
 			name := form.GetFormItemByLabel("Name").(*tview.InputField).GetText()
 			// from := form.GetFormItemByLabel("From (yyyy/mm/ddT00:00:00Z)").(*tview.InputField).GetText()
 			// to := form.GetFormItemByLabel("To (yyyy/mm/ddT00:00:00Z)").(*tview.InputField).GetText()
-			filter := &flowdata.FilterAttributes{}
+			filter := flowdata.FilterAttributes{}
 			filter.Action = action
 			filter.Reporter = reporter
 			filter.Namespace = namespace
 			filter.Name = name
 			// fa.filter.From = ""
 			// fa.filter.To = ""
-			gs := global.GetState()
-			gs.Filter = *filter
-			global.SetState(gs)
+			global.SetFilter(filter)
 			fa.pages.RemovePage(modalName)
 		}).
 		AddButton("Cancel", func() {
 			fa.pages.RemovePage(modalName)
 		})
 
+		// form.SetFieldStyle(tcell.StyleDefault.Attributes(tcell.AttrMask))
+
+		// Change label color on focus
+	// form.SetFormItemStyles(tview.Styles{
+	// 	FieldStyle: tview.FieldStyle{
+	// 		LabelActivated: tcell.ColorRed,
+	// 	},
+	// })
+
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			fa.pages.RemovePage(modalName)
 			return nil
 		}
+
+		focusIdx, _ := form.GetFocusedItemIndex()
+		for i := range form.GetFormItemCount() {
+			style := listUnselStyle
+			if i == focusIdx {
+				style = listSelStyle
+			}
+			item := form.GetFormItem(i)
+			switch fi := item.(type) {
+			case *tview.DropDown:
+				logrus.Debugf("In dropdown label setter: %d, %d", i, focusIdx)
+				fi.GetLabel()
+			case *tview.InputField:
+				logrus.Debugf("In InputField label setter: %d, %d", i, focusIdx)
+				fi.SetLabelStyle(style)
+			}
+		}
+
 		return event
 	})
 
@@ -88,11 +114,20 @@ func (fa *FlowApp) filterModal() {
 			AddItem(nil, 0, 1, false).
 			AddItem(form, 80, 1, true). // Width of 80
 			AddItem(nil, 0, 1, false),
-			30, 1, true). // Height of 30
+			20, 1, true). // Height of 20
 		AddItem(nil, 0, 1, false)
 
 	modal := tview.NewFlex()
 	modal.AddItem(modalFlex, 0, 1, true)
 
+	prims := []tview.Primitive{
+		form,
+		form.GetFormItemByLabel("Action"),
+		form.GetFormItemByLabel("Reporter"),
+		form.GetFormItemByLabel("Namespace"),
+		form.GetFormItemByLabel("Name"),
+	}
+
+	applyTheme(prims...)
 	fa.pages.AddPage(modalName, modal, true, true)
 }
