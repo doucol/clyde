@@ -18,7 +18,8 @@ fi
 
 # Establish env vars
 NAME=${NAME:-calico}
-VERSION=${VERSION:-lasthash}
+VERSION=${VERSION:-v3.30}
+HASHREL=${HASHREL:-}
 DP=${DP:-$DEFAULT_DP}
 PODNET=${PODNET:-10.244.0.0/16}
 SVCNET=${SVCNET:-10.96.0.0/16}
@@ -27,9 +28,6 @@ PORT=${PORT:-6443}
 ENCAP=${ENCAP:-$DEFAULT_ENCAP}
 DEMOAPP=${DEMOAPP:-false}
 WHISKER=${WHISKER:-}
-if [[ "${WHISKER}" == "" && ("${VERSION}" == "lasthash" || "${VERSION}" == "master") ]]; then
-  WHISKER=true
-fi
 OPYAML=${OPYAML:-}
 KUBECTL="kubectl --context=kind-${NAME}"
 KIND="kind --name=${NAME}"
@@ -45,14 +43,17 @@ function print_help() {
   echo ""
   echo "Environment variables:"
   echo "  NAME     - The name of the kind cluster (default: calico)"
-  echo "  VERSION  - The version of Calico to install - valid values: lasthash|latest|master|<version_tag> (default: lasthash)"
+  echo "  VERSION  - The version of Calico to install - valid values: latest|master|<semver> (default: ${VERSION})"
+  echo "             ('latest' will install the latest official release of Calico according to git tags)"
+  echo "  HASHREL  - Use a 'hash release' (managed nightly build) of Calico to install - valid values: true|false"
+  echo "             (Default depends on VERSION - default: ${HASHREL}. Not applicable for VERSION=latest)"
   echo "  DP       - Dataplane to use - valid values: BPF|Iptables|Nftables (default: ${DP})"
   echo "  PODNET   - The pod network CIDR to use (default: 10.244.0.0/16)"
   echo "  SVCNET   - The service network CIDR to use (default: 10.96.0.0/16)"
   echo "  WORKERS  - The number of worker nodes to create (default: 2)"
   echo "  PORT     - The K8s API server port to use (default: 6443)"
   echo "  ENCAP    - The tunnel encapsulation to use - valid values: IPIP|IPIPCrossSubnet|None|VXLAN|VXLANCrossSubnet (default: ${ENCAP})"
-  echo "  DEMOAPP  - Install the demo app - value values: true|false (default: false)"
+  echo "  DEMOAPP  - Install the demo app - valid values: true|false (default: false)"
   echo "  OPYAML   - The operator yaml to use for installation (default: varies depending on value for VERSION)"
   echo ""
   echo "Dependencies:"
@@ -60,12 +61,22 @@ function print_help() {
 }
 
 function render_env_vars() {
-  if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
-    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
-  elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
+  if [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
     VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
   fi
+  if [[ "${VERSION}" == "master" && "${HASHREL}" == "" ]]; then
+    HASHREL=true
+  fi
+  if [[ "${HASHREL}" == "" ]]; then
+    HASHREL=false
+  fi
+  if [[ "${HASHREL}" == "true" ]]; then
+    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)manifests/tigera-operator.yaml
+  fi
   OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
+  if [[ "${WHISKER}" == "" ]]; then
+    WHISKER=true
+  fi
 }
 
 function confirm_state() {
@@ -73,6 +84,7 @@ function confirm_state() {
   echo "Existing state:"
   echo "  NAME     - ${NAME}"
   echo "  VERSION  - ${VERSION}"
+  echo "  HASHREL  - ${HASHREL}"
   echo "  DP       - ${DP}"
   echo "  PODNET   - ${PODNET}"
   echo "  SVCNET   - ${SVCNET}"
@@ -141,12 +153,13 @@ function calico_version() {
 }
 
 function install_whisker() {
-  if [[ "${WHISKER}" != "true" ]]; then
-    return 0
-  fi
   CALICO_VERSION=$(calico_version)
   if ! version_greater_equal "${CALICO_VERSION}" "v3.30"; then
-    echo "Warning: This version of calico '${CALICO_VERSION}' may not support whisker"
+    echo "This version of calico '${CALICO_VERSION}' does not support whisker - not installing."
+    return 0
+  fi
+  if [[ "${WHISKER}" != "true" ]]; then
+    return 0
   fi
 
   echo ""
@@ -211,33 +224,6 @@ function install_demo_app() {
   return 0
 }
 
-# function preload_master_images() {
-#   # If IMAGE_PRELOAD is set to true, we'll pull the images and load them into the kind cluster
-#   # to accelerate the setup / install process (just 'master' for now)
-#   if [[ "${VERSION}" == "master" && "${IMAGE_PRELOAD}" == "true" ]]; then
-#     images=(
-#       calico/node:master
-#       calico/cni:master
-#       calico/typha:master
-#       calico/kube-controllers:master
-#       calico/csi:master
-#       calico/node-driver-registrar:master
-#       calico/apiserver:master
-#       calico/whisker:master
-#       calico/whisker-backend:master
-#       calico/goldmane:master
-#       calico/guardian:master
-#       quay.io/tigera/operator:master
-#     )
-#
-#     # Loop through each image and pull it
-#     for image in "${images[@]}"; do
-#       docker pull "$image"
-#       ${KIND} load docker-image "$image"
-#     done
-#   fi
-# }
-
 function install_docker_secrets() {
   if [[ -f "$HOME/.docker/config.json" ]]; then
     echo "Copying your docker auth secrets ($HOME/.docker/config.json) to each cluster node..."
@@ -251,12 +237,12 @@ function install_docker_secrets() {
 }
 
 function install_calico_oss() {
-  if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
-    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
-  elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
-    VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
-  fi
-  OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
+  # if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
+  #   OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
+  # elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
+  #   VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  # fi
+  # OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
 
   echo ""
   echo "Installing Calico OSS operator using: ${OPYAML}"
