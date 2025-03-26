@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"fmt"
+
+	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/global"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -11,6 +14,18 @@ func (fa *FlowApp) filterModal() {
 	const modalName = "filterModal"
 
 	filter := global.GetFilter()
+
+	actionLabel := "Action:"
+	reporterLabel := "Reporter:"
+	namespaceLabel := "Namespace:"
+	nameLabel := "Name:"
+
+	labelUnsel := func(l string) string {
+		return fmt.Sprintf("%-12s", l)
+	}
+	labelSel := func(l string) string {
+		return fmt.Sprintf("* %-12s", l)
+	}
 
 	actionOptions := []string{"All", "Deny", "Allow"}
 	reporterOptions := []string{"All", "Src", "Dst"}
@@ -32,7 +47,12 @@ func (fa *FlowApp) filterModal() {
 	}
 
 	actionDropDown := tview.NewDropDown()
-	actionDropDown.SetLabel("Action:")
+	actionDropDown.SetLabel(labelUnsel(actionLabel))
+	actionDropDown.SetFocusFunc(func() {
+		actionDropDown.SetLabel(labelSel(actionLabel))
+	}).SetBlurFunc(func() {
+		actionDropDown.SetLabel(labelUnsel(actionLabel))
+	})
 	actionDropDown.SetOptions(actionOptions, func(opt string, idx int) {
 		filter.Action = ""
 		if idx > 0 {
@@ -40,14 +60,14 @@ func (fa *FlowApp) filterModal() {
 		}
 	})
 	actionDropDown.SetCurrentOption(actionIdx)
-	actionDropDown.SetFocusFunc(func() {
-		actionDropDown.SetLabel("* Action:    ")
-	}).SetBlurFunc(func() {
-		actionDropDown.SetLabel("Action:      ")
-	})
 
 	reporterDropDown := tview.NewDropDown()
-	reporterDropDown.SetLabel("Reporter:")
+	reporterDropDown.SetLabel(labelUnsel(reporterLabel))
+	reporterDropDown.SetFocusFunc(func() {
+		reporterDropDown.SetLabel(labelSel(reporterLabel))
+	}).SetBlurFunc(func() {
+		reporterDropDown.SetLabel(labelUnsel(reporterLabel))
+	})
 	reporterDropDown.SetOptions(reporterOptions, func(opt string, idx int) {
 		filter.Reporter = ""
 		if idx > 0 {
@@ -55,36 +75,31 @@ func (fa *FlowApp) filterModal() {
 		}
 	})
 	reporterDropDown.SetCurrentOption(reporterIdx)
-	reporterDropDown.SetFocusFunc(func() {
-		reporterDropDown.SetLabel("* Reporter: ")
-	}).SetBlurFunc(func() {
-		reporterDropDown.SetLabel("Reporter:   ")
-	})
 
 	namespaceInputField := tview.NewInputField()
-	namespaceInputField.SetLabel("Namespace:")
+	namespaceInputField.SetLabel(labelUnsel(namespaceLabel))
+	namespaceInputField.SetFocusFunc(func() {
+		namespaceInputField.SetLabel(labelSel(namespaceLabel))
+	}).SetBlurFunc(func() {
+		namespaceInputField.SetLabel(labelUnsel(namespaceLabel))
+	})
 	namespaceInputField.SetText(filter.Namespace)
 	namespaceInputField.SetFieldWidth(60)
 	namespaceInputField.SetChangedFunc(func(text string) {
 		filter.Namespace = text
 	})
-	namespaceInputField.SetFocusFunc(func() {
-		namespaceInputField.SetLabel("* Namespace: ")
-	}).SetBlurFunc(func() {
-		namespaceInputField.SetLabel("Namespace:   ")
-	})
 
 	nameInputField := tview.NewInputField()
-	nameInputField.SetLabel("Name:")
-	nameInputField.SetText(filter.Namespace)
+	nameInputField.SetLabel(labelUnsel(nameLabel))
+	nameInputField.SetFocusFunc(func() {
+		nameInputField.SetLabel(labelSel(nameLabel))
+	}).SetBlurFunc(func() {
+		nameInputField.SetLabel(labelUnsel(nameLabel))
+	})
+	nameInputField.SetText(filter.Name)
 	nameInputField.SetFieldWidth(60)
 	nameInputField.SetChangedFunc(func(text string) {
 		filter.Name = text
-	})
-	nameInputField.SetFocusFunc(func() {
-		nameInputField.SetLabel("* Name:     ")
-	}).SetBlurFunc(func() {
-		nameInputField.SetLabel("Name:       ")
 	})
 
 	form := tview.NewForm()
@@ -98,6 +113,10 @@ func (fa *FlowApp) filterModal() {
 		fa.pages.RemovePage(modalName)
 	})
 	form.AddButton("Cancel", func() {
+		fa.pages.RemovePage(modalName)
+	})
+	form.AddButton("Clear", func() {
+		global.SetFilter(flowdata.FilterAttributes{})
 		fa.pages.RemovePage(modalName)
 	})
 
