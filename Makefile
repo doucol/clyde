@@ -9,7 +9,7 @@ endif
 APP := clyde
 OUT ?= bin/$(APP)
 SRC := github.com/doucol/$(APP)
-VER ?= v0.0.3
+VER ?= v0.0.4
 
 default: help
 
