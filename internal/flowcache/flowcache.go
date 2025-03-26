@@ -68,15 +68,13 @@ func (fc *FlowCache) refreshCache() {
 }
 
 func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) []*flowdata.FlowData {
-	gs := global.GetState()
-	flows := fc.fds.GetFlowsBySumID(sumID, &gs.Filter)
+	flows := fc.fds.GetFlowsBySumID(sumID, global.GetFilter())
 	fc.flowCache.SetTTL(key, flows, 5*time.Second)
 	return flows
 }
 
 func (fc *FlowCache) cacheFlowSums() []*flowdata.FlowSum {
-	gs := global.GetState()
-	flowSums := fc.fds.GetFlowSums(&gs.Filter)
+	flowSums := fc.fds.GetFlowSums(global.GetFilter())
 	fc.flowSumCache.Set(flowSumCacheName, flowSums)
 	return flowSums
 }
