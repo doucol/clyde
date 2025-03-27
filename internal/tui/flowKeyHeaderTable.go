@@ -7,30 +7,55 @@ import (
 	"github.com/rivo/tview"
 )
 
-// FlowDetailTableHeader is a table for displaying flow details header
+// FlowKeyHeaderTable is a table for displaying flow details header
 type flowKeyHeaderTable struct {
 	tview.TableContentReadOnly
-	fds *flowdata.FlowDataStore
-	fs  *flowdata.FlowSum
-	fas *flowAppState
+	fds       *flowdata.FlowDataStore
+	fs        *flowdata.FlowSum
+	fas       *flowAppState
+	colTitles []string
+}
+
+const (
+	tblcol_fkht_SRC_NAMESPACE = iota
+	tblcol_fkht_SRC_NAME
+	tblcol_fkht_DST_NAMESPACE
+	tblcol_fkht_DST_NAME
+	tblcol_fkht_PROTO
+	tblcol_fkht_PORT
+)
+
+func newFlowKeyHeaderTable(fds *flowdata.FlowDataStore, fas *flowAppState) *flowKeyHeaderTable {
+	return &flowKeyHeaderTable{
+		fds: fds,
+		fas: fas,
+		colTitles: []string{
+			"SRC NAMESPACE",
+			"SRC NAME",
+			"DST NAMESPACE",
+			"DST NAME",
+			"PROTO",
+			"PORT",
+		},
+	}
 }
 
 func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
-		return hdrCell(keyCols[column], 1, 1)
+		return hdrCell(fdt.colTitles[column], 1, 1)
 	}
 	switch column {
-	case SUMCOL_SRC_NAMESPACE:
+	case tblcol_fkht_SRC_NAMESPACE:
 		return valCell(fdt.fs.SourceNamespace, 1, 1)
-	case SUMCOL_SRC_NAME:
+	case tblcol_fkht_SRC_NAME:
 		return valCell(fdt.fs.SourceName, 1, 2)
-	case SUMCOL_DST_NAMESPACE:
+	case tblcol_fkht_DST_NAMESPACE:
 		return valCell(fdt.fs.DestNamespace, 1, 1)
-	case SUMCOL_DST_NAME:
+	case tblcol_fkht_DST_NAME:
 		return valCell(fdt.fs.DestName, 1, 2)
-	case SUMCOL_PROTO:
+	case tblcol_fkht_PROTO:
 		return valCell(fdt.fs.Protocol, 1, 0)
-	case SUMCOL_PORT:
+	case tblcol_fkht_PORT:
 		return valCell(intos(fdt.fs.DestPort), 1, 0)
 	}
 	panic(fmt.Errorf("invalid cell row: %d, col: %d", row, column))
@@ -45,5 +70,5 @@ func (fdt *flowKeyHeaderTable) GetRowCount() int {
 }
 
 func (fdt *flowKeyHeaderTable) GetColumnCount() int {
-	return len(keyCols)
+	return len(fdt.colTitles)
 }

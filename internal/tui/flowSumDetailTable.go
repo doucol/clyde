@@ -11,43 +11,73 @@ import (
 // FlowDetailTable is a table for displaying flow details.
 type flowSumDetailTable struct {
 	tview.TableContentReadOnly
-	fc    *flowcache.FlowCache
-	flows []*flowdata.FlowData
-	fas   *flowAppState
+	fc        *flowcache.FlowCache
+	flows     []*flowdata.FlowData
+	fas       *flowAppState
+	colTitles []string
 }
 
-func (fdt *flowSumDetailTable) CurrentID() {
+const (
+	tblcol_fsdt_START_TIME = iota
+	tblcol_fsdt_END_TIME
+	tblcol_fsdt_SRC_LABELS
+	tblcol_fsdt_DST_LABELS
+	tblcol_fsdt_REPORTER
+	tblcol_fsdt_PACK_IN
+	tblcol_fsdt_PACK_OUT
+	tblcol_fsdt_BYTE_IN
+	tblcol_fsdt_BYTE_OUT
+	tblcol_fsdt_ACTION
+)
+
+func newFlowSumDetailTable(fc *flowcache.FlowCache, fas *flowAppState) *flowSumDetailTable {
+	return &flowSumDetailTable{
+		fc:  fc,
+		fas: fas,
+		colTitles: []string{
+			"START TIME",
+			"END TIME",
+			"SRC LABELS",
+			"DST LABELS",
+			"REPORTER",
+			"PACK IN",
+			"PACK OUT",
+			"BYTE IN",
+			"BYTE OUT",
+			"ACTION",
+		},
+	}
 }
 
 func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
-		return hdrCell(dtlCols[column], 1, 1)
+		return hdrCell(fdt.colTitles[column], 1, 1)
 	}
 
 	fd := fdt.flows[row-1]
 
 	switch column {
-	case DTLCOL_START_TIME:
+	case tblcol_fsdt_START_TIME:
 		tc := valCell(tf(fd.StartTime), 3, 0)
 		tc.SetReference(fd.ID)
 		return tc
-	case DTLCOL_END_TIME:
+	case tblcol_fsdt_END_TIME:
 		return valCell(tf(fd.EndTime), 3, 0)
-	case DTLCOL_SRC_LABELS:
+	case tblcol_fsdt_SRC_LABELS:
 		return valCell(fd.SourceLabels, 2, 3)
-	case DTLCOL_DST_LABELS:
+	case tblcol_fsdt_DST_LABELS:
 		return valCell(fd.DestLabels, 2, 3)
-	case DTLCOL_REPORTER:
+	case tblcol_fsdt_REPORTER:
 		return valCell(fd.Reporter, 1, 0)
-	case DTLCOL_PACK_IN:
+	case tblcol_fsdt_PACK_IN:
 		return valCell(intos(fd.PacketsIn), 1, 0)
-	case DTLCOL_PACK_OUT:
+	case tblcol_fsdt_PACK_OUT:
 		return valCell(intos(fd.PacketsOut), 1, 0)
-	case DTLCOL_BYTE_IN:
+	case tblcol_fsdt_BYTE_IN:
 		return valCell(intos(fd.BytesIn), 1, 0)
-	case DTLCOL_BYTE_OUT:
+	case tblcol_fsdt_BYTE_OUT:
 		return valCell(intos(fd.BytesOut), 1, 0)
-	case DTLCOL_ACTION:
+	case tblcol_fsdt_ACTION:
 		return actionCell(fd.Action)
 	}
 
@@ -60,5 +90,5 @@ func (fdt *flowSumDetailTable) GetRowCount() int {
 }
 
 func (fdt *flowSumDetailTable) GetColumnCount() int {
-	return len(dtlCols)
+	return len(fdt.colTitles)
 }

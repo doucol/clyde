@@ -8,8 +8,9 @@ import (
 )
 
 func (fa *FlowApp) viewSummary() tview.Primitive {
+	tbl := newFlowSumTable(fa.fc)
 	tableData := newTable().SetBorders(false).SetSelectable(true, false).
-		SetContent(&flowSumTable{fc: fa.fc}).SetFixed(1, 0)
+		SetContent(tbl).SetFixed(1, 0)
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
@@ -36,9 +37,9 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 
 func (fa *FlowApp) viewSumDetail() tview.Primitive {
 	tableKeyHeader := newTable().SetBorders(true).SetSelectable(false, false).
-		SetContent(&flowKeyHeaderTable{fds: fa.fds, fas: fa.fas}).SetFixed(1, 0)
+		SetContent(newFlowKeyHeaderTable(fa.fds, fa.fas)).SetFixed(1, 0)
 
-	dt := &flowSumDetailTable{fc: fa.fc, fas: fa.fas}
+	dt := newFlowSumDetailTable(fa.fc, fa.fas)
 	tableData := newTable().SetBorders(false).SetSelectable(true, false).
 		SetContent(dt).SetFixed(1, 0)
 
@@ -72,7 +73,7 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 
 func (fa *FlowApp) viewFlowDetail() tview.Primitive {
 	tableDetailHeader := newTable().SetBorders(true).SetSelectable(false, false)
-	tableDetailHeader.SetContent(NewFlowDetailHeaderTable(fa.fds, fa.fas))
+	tableDetailHeader.SetContent(newFlowDetailHeaderTable(fa.fds, fa.fas))
 
 	moreDetails := tview.NewTextView()
 	moreDetails.SetBorder(true).SetTitle("More Details")

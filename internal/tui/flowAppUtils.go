@@ -1,12 +1,26 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+var localLoc *time.Location
+
+func init() {
+	var err error
+	localLoc, err = time.LoadLocation("Local")
+	if err != nil {
+		panic(errors.New("unable to load 'local' time location: " + err.Error()))
+	}
+}
 
 var (
 	bgColor            = tcell.ColorBlack
@@ -92,6 +106,43 @@ func newTable() *tview.Table {
 	t := tview.NewTable().SetBorders(false).SetSelectable(false, false)
 	applyTheme(t)
 	return t
+}
+
+func cell(val string, width, exp int) *tview.TableCell {
+	return tview.NewTableCell(val).SetMaxWidth(width).SetExpansion(exp)
+}
+
+func valCell(val string, width, exp int) *tview.TableCell {
+	return cell(val, width, exp).SetStyle(tcellValStyle)
+}
+
+func hdrCell(val string, width, exp int) *tview.TableCell {
+	return cell(val, width, exp).SetStyle(tcellHdrStyle)
+}
+
+func actionCell(action string) *tview.TableCell {
+	tc := valCell(action, 1, 0)
+	color := allowColor
+	if strings.ToLower(action) == "deny" {
+		color = denyColor
+	}
+	tc.SetTextColor(color)
+	tc.SetSelectedStyle(selectedStyle.Foreground(color))
+	return tc
+}
+
+func uintos(v uint64) string {
+	return strconv.FormatUint(v, 10)
+}
+
+func intos(v int64) string {
+	return strconv.FormatInt(v, 10)
+}
+
+func tf(t time.Time) string {
+	// TODO: This turned out to be too long, need to format diff
+	// return t.In(localLoc).Format(time.RFC3339)
+	return t.Format(time.RFC3339)
 }
 
 func policyHitsToString(policyHits []*flowdata.PolicyHit) string {
