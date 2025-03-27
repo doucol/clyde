@@ -177,18 +177,26 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 
 func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []*FlowData {
 	fd := []*FlowData{}
-	matchers := []q.Matcher{}
-	matchers = append(matchers, q.Eq("SumID", sumID))
-	if filter.Action != "" {
-		matchers = append(matchers, q.Eq("Action", filter.Action))
-	}
-	if filter.Reporter != "" {
-		matchers = append(matchers, q.Eq("Reporter", filter.Reporter))
-	}
-	query := fds.db.Select(matchers...)
-	err := query.Find(&fd)
-	if err != nil && !errors.Is(err, storm.ErrNotFound) {
-		panic(fmt.Errorf("error getting flow detail: %d, %v", sumID, err))
+	useFilter := (filter != (FilterAttributes{}))
+	if !useFilter {
+		err := fds.db.Find("SumID", sumID, &fd)
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
+			logrus.WithError(err).Panic("error getting all flow sums")
+		}
+	} else {
+		matchers := []q.Matcher{}
+		matchers = append(matchers, q.Eq("SumID", sumID))
+		if filter.Action != "" {
+			matchers = append(matchers, q.Eq("Action", filter.Action))
+		}
+		if filter.Reporter != "" {
+			matchers = append(matchers, q.Eq("Reporter", filter.Reporter))
+		}
+		query := fds.db.Select(matchers...)
+		err := query.Find(&fd)
+		if err != nil && !errors.Is(err, storm.ErrNotFound) {
+			panic(fmt.Errorf("error getting flow detail: %d, %v", sumID, err))
+		}
 	}
 	return fd
 }
