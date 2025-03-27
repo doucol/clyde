@@ -64,7 +64,7 @@ function render_env_vars() {
   if [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
     VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
   fi
-  if [[ "${VERSION}" == "master" && "${HASHREL}" == "" ]]; then
+  if [[ ("${VERSION}" == "master" || "${VERSION}" == "v3.30") && "${HASHREL}" == "" ]]; then
     HASHREL=true
   fi
   if [[ "${HASHREL}" == "" ]]; then
@@ -367,6 +367,7 @@ function main() {
     ${KIND} delete cluster
   else
     checkOS show
+    render_env_vars
     print_help
   fi
 }
