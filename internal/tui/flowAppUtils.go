@@ -70,7 +70,7 @@ func applyTheme(components ...tview.Primitive) {
 			c.SetLabelColor(titleColor)
 			c.SetListStyles(listUnselStyle, listSelStyle)
 		case *tview.InputField:
-			c.SetBackgroundColor(bgColor)
+			c.SetBackgroundColor(selBgColor)
 			c.SetBorderColor(borderColor)
 			c.SetTitleColor(titleColor)
 			c.SetFieldBackgroundColor(selBgColor)
