@@ -115,6 +115,10 @@ function version_greater_equal() {
   printf '%s\n%s\n' "$2" "$1" | sort --check=quiet --version-sort
 }
 
+function version_greater() {
+  ! version_greater_equal "$2" "$1"
+}
+
 function goldmain_whisker_crs() {
   printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Goldmane" "metadata:" "  name: default"
   printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Whisker" "metadata:" "  name: default"
