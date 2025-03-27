@@ -131,10 +131,9 @@ func actionCell(action string) *tview.TableCell {
 	return tc
 }
 
-func uintos(v uint64) string {
-	return strconv.FormatUint(v, 10)
-}
-
+//	func uintos(v uint64) string {
+//		return strconv.FormatUint(v, 10)
+//	}
 func intos(v int64) string {
 	return strconv.FormatInt(v, 10)
 }
