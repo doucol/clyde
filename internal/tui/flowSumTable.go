@@ -34,7 +34,7 @@ func newFlowSumTable(fc *flowcache.FlowCache) *flowSumTable {
 			"SRC NAMESPACE / NAME",
 			"DST NAMESPACE / NAME",
 			"PROTO:PORT",
-			"SRC / DST COUNT",
+			"SRC / DST",
 			"SRC PACK I/O",
 			"SRC BYTE I/O",
 			"DST PACK I/O",
