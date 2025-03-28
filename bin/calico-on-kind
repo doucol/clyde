@@ -31,6 +31,7 @@ WHISKER=${WHISKER:-}
 OPYAML=${OPYAML:-}
 KUBECTL="kubectl --context=kind-${NAME}"
 KIND="kind --name=${NAME}"
+LATEST_VERSION=${LATEST_VERSION:-}
 
 function print_help() {
   echo "Usage: $0 [new|del|demo|whisker]"
@@ -61,22 +62,36 @@ function print_help() {
 }
 
 function render_env_vars() {
-  if [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
-    VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  if [[ "${VERSION}" != "latest" && "${VERSION}" != "master" ]]; then
+    if ! version_greater "${VERSION}" "v0.1"; then
+      echo "ERROR: Invalid VERSION value: ${VERSION}"
+      print_help
+      exit 1
+    fi
   fi
-  if [[ ("${VERSION}" == "master" || "${VERSION}" == "v3.30") && "${HASHREL}" == "" ]]; then
-    HASHREL=true
+
+  LATEST_VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  if [[ "${VERSION}" == "latest" ]]; then
+    VERSION=${LATEST_VERSION}
   fi
   if [[ "${HASHREL}" == "" ]]; then
-    HASHREL=false
+    if [[ "${VERSION}" == "master" ]] || version_greater "${VERSION}" "${LATEST_VERSION}"; then
+      HASHREL=true
+    else
+      HASHREL=false
+    fi
+  fi
+  if [[ "${WHISKER}" == "" ]]; then
+    if [[ "${VERSION}" == "master" ]] || version_greater_equal "${VERSION}" "v3.30"; then
+      WHISKER=true
+    else
+      WHISKER=false
+    fi
   fi
   if [[ "${HASHREL}" == "true" ]]; then
     OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)manifests/tigera-operator.yaml
   fi
   OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
-  if [[ "${WHISKER}" == "" ]]; then
-    WHISKER=true
-  fi
 }
 
 function confirm_state() {
@@ -157,12 +172,13 @@ function calico_version() {
 }
 
 function install_whisker() {
+  if [[ "${WHISKER}" != "true" ]]; then
+    return 0
+  fi
+
   CALICO_VERSION=$(calico_version)
   if ! version_greater_equal "${CALICO_VERSION}" "v3.30"; then
     echo "This version of calico '${CALICO_VERSION}' does not support whisker - not installing."
-    return 0
-  fi
-  if [[ "${WHISKER}" != "true" ]]; then
     return 0
   fi
 
@@ -214,7 +230,7 @@ function wait_for_calico_node_ready() {
 }
 
 function install_demo_app() {
-  if [[ "${DEMOAPP}" == "true" || "${DEMO_APP}" == "true" ]]; then
+  if [[ "${DEMOAPP}" == "true" ]]; then
     echo ""
     echo "Installing Demo App 'GoogleCloudPlatform/microservices-demo'..."
     if [[ "${NO_WAIT}" == "true" ]] || wait_for_calico_node_ready; then
@@ -241,13 +257,6 @@ function install_docker_secrets() {
 }
 
 function install_calico_oss() {
-  # if [[ "${VERSION}" == "lasthash" && "${OPYAML}" == "" ]]; then
-  #   OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/master.txt | xargs)manifests/tigera-operator.yaml
-  # elif [[ "${VERSION}" == "latest" && "${OPYAML}" == "" ]]; then
-  #   VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
-  # fi
-  # OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
-
   echo ""
   echo "Installing Calico OSS operator using: ${OPYAML}"
   ${KUBECTL} create -f "${OPYAML}"
