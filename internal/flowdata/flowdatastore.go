@@ -110,7 +110,7 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 	fs := []*FlowSum{}
 	useFilter := (filter != (FilterAttributes{}))
 	if !useFilter {
-		err := fds.db.All(&fs)
+		err := fds.db.AllByIndex("Key", &fs)
 		if err != nil && !errors.Is(err, storm.ErrNotFound) {
 			logrus.WithError(err).Panic("error getting all flow sums")
 		}
@@ -153,7 +153,7 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 				matchers = append(matchers, qor)
 			}
 		}
-		query := fds.db.Select(matchers...)
+		query := fds.db.Select(matchers...).OrderBy("Key")
 		err := query.Find(&fs)
 		if err != nil && !errors.Is(err, storm.ErrNotFound) {
 			logrus.WithError(err).Panic("error getting all flow sums")
