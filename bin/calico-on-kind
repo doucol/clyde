@@ -32,6 +32,7 @@ OPYAML=${OPYAML:-}
 KUBECTL="kubectl --context=kind-${NAME}"
 KIND="kind --name=${NAME}"
 LATEST_VERSION=${LATEST_VERSION:-}
+ZTPOLICY=${ZTPOLICY:-${DEMOAPP}}
 
 function print_help() {
   echo "Usage: $0 [new|del|demo|whisker]"
@@ -55,6 +56,7 @@ function print_help() {
   echo "  PORT     - The K8s API server port to use (default: 6443)"
   echo "  ENCAP    - The tunnel encapsulation to use - valid values: IPIP|IPIPCrossSubnet|None|VXLAN|VXLANCrossSubnet (default: ${ENCAP})"
   echo "  DEMOAPP  - Install the demo app - valid values: true|false (default: false)"
+  echo "  ZTPOLICY - Install a zero-trust policy set onto the Demo App - valid values: true|false. (default is true, if DEMOAPP is true)"
   echo "  OPYAML   - The operator yaml to use for installation (default: varies depending on value for VERSION)"
   echo ""
   echo "Dependencies:"
@@ -107,6 +109,7 @@ function confirm_state() {
   echo "  PORT     - ${PORT}"
   echo "  ENCAP    - ${ENCAP}"
   echo "  DEMOAPP  - ${DEMOAPP}"
+  echo "  ZTPOLICY - ${ZTPOLICY}"
   echo "  OPYAML   - ${OPYAML}"
   echo ""
   read -p "Continue y/N? " -n 1 -r REPLY
@@ -235,6 +238,9 @@ function install_demo_app() {
     echo "Installing Demo App 'GoogleCloudPlatform/microservices-demo'..."
     if [[ "${NO_WAIT}" == "true" ]] || wait_for_calico_node_ready; then
       ${KUBECTL} create -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/refs/heads/main/release/kubernetes-manifests.yaml
+      if [[ "${ZTPOLICY}" == "true" ]]; then
+        ${KUBECTL} create -f https://raw.githubusercontent.com/doucol/clyde/refs/heads/main/test/gcp-demo-zero-trust-policy.yaml
+      fi
       return $?
     else
       echo "ERROR: Not all calico-nodes are ready after waiting too long - exiting..."
