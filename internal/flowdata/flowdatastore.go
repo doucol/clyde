@@ -119,39 +119,22 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 		if filter.Action != "" {
 			matchers = append(matchers, q.Eq("Action", filter.Action))
 		}
-		switch filter.Reporter {
-		case "Src":
-			matchers = append(matchers, q.Gt("SourceReports", 0))
-		case "Dst":
-			matchers = append(matchers, q.Gt("DestReports", 0))
+		if filter.Port > 0 {
+			matchers = append(matchers, q.Eq("DestPort", filter.Port))
 		}
 		if filter.Namespace != "" {
-			switch filter.Reporter {
-			case "Src":
-				matchers = append(matchers, q.Re("SourceNamespace", filter.Namespace))
-			case "Dst":
-				matchers = append(matchers, q.Re("DestNamespace", filter.Namespace))
-			default:
-				qor := q.Or(
-					q.Re("SourceNamespace", filter.Namespace),
-					q.Re("DestNamespace", filter.Namespace),
-				)
-				matchers = append(matchers, qor)
-			}
+			qor := q.Or(
+				q.Re("SourceNamespace", filter.Namespace),
+				q.Re("DestNamespace", filter.Namespace),
+			)
+			matchers = append(matchers, qor)
 		}
 		if filter.Name != "" {
-			switch filter.Reporter {
-			case "Src":
-				matchers = append(matchers, q.Re("SourceName", filter.Name))
-			case "Dst":
-				matchers = append(matchers, q.Re("DestName", filter.Name))
-			default:
-				qor := q.Or(
-					q.Re("SourceName", filter.Name),
-					q.Re("DestName", filter.Name),
-				)
-				matchers = append(matchers, qor)
-			}
+			qor := q.Or(
+				q.Re("SourceName", filter.Name),
+				q.Re("DestName", filter.Name),
+			)
+			matchers = append(matchers, qor)
 		}
 		query := fds.db.Select(matchers...).OrderBy("Key")
 		err := query.Find(&fs)
@@ -189,8 +172,8 @@ func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []
 		if filter.Action != "" {
 			matchers = append(matchers, q.Eq("Action", filter.Action))
 		}
-		if filter.Reporter != "" {
-			matchers = append(matchers, q.Eq("Reporter", filter.Reporter))
+		if filter.Port > 0 {
+			matchers = append(matchers, q.Eq("DestPort", filter.Port))
 		}
 		query := fds.db.Select(matchers...)
 		err := query.Find(&fd)

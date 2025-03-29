@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strconv"
+
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/global"
 	"github.com/gdamore/tcell/v2"
@@ -14,12 +16,11 @@ func (fa *FlowApp) filterModal() {
 	filter := global.GetFilter()
 
 	actionLabel := "Action:"
-	reporterLabel := "Reporter:"
+	portLabel := "Port:"
 	namespaceLabel := "Namespace:"
 	nameLabel := "Name:"
 
 	actionOptions := []string{"All", "Deny", "Allow"}
-	reporterOptions := []string{"All", "Src", "Dst"}
 
 	actionIdx := 0
 	switch filter.Action {
@@ -27,14 +28,6 @@ func (fa *FlowApp) filterModal() {
 		actionIdx = 1
 	case "Allow":
 		actionIdx = 2
-	}
-
-	reporterIdx := 0
-	switch filter.Reporter {
-	case "Src":
-		reporterIdx = 1
-	case "Dst":
-		reporterIdx = 2
 	}
 
 	actionDropDown := tview.NewDropDown()
@@ -47,19 +40,21 @@ func (fa *FlowApp) filterModal() {
 	})
 	actionDropDown.SetCurrentOption(actionIdx)
 
-	reporterDropDown := tview.NewDropDown()
-	reporterDropDown.SetLabel(reporterLabel)
-	reporterDropDown.SetOptions(reporterOptions, func(opt string, idx int) {
-		filter.Reporter = ""
-		if idx > 0 {
-			filter.Reporter = opt
-		}
+	portInputField := tview.NewInputField()
+	portInputField.SetLabel(portLabel)
+	if filter.Port > 0 {
+		portInputField.SetText(strconv.Itoa(filter.Port))
+	}
+	portInputField.SetFieldWidth(6)
+	portInputField.SetAcceptanceFunc(tview.InputFieldInteger)
+	portInputField.SetChangedFunc(func(text string) {
+		filter.Port, _ = strconv.Atoi(text)
 	})
-	reporterDropDown.SetCurrentOption(reporterIdx)
 
 	namespaceInputField := tview.NewInputField()
 	namespaceInputField.SetLabel(namespaceLabel)
 	namespaceInputField.SetText(filter.Namespace)
+	namespaceInputField.SetAcceptanceFunc(tview.InputFieldMaxLength(60))
 	namespaceInputField.SetFieldWidth(60)
 	namespaceInputField.SetChangedFunc(func(text string) {
 		filter.Namespace = text
@@ -68,6 +63,7 @@ func (fa *FlowApp) filterModal() {
 	nameInputField := tview.NewInputField()
 	nameInputField.SetLabel(nameLabel)
 	nameInputField.SetText(filter.Name)
+	namespaceInputField.SetAcceptanceFunc(tview.InputFieldMaxLength(60))
 	nameInputField.SetFieldWidth(60)
 	nameInputField.SetChangedFunc(func(text string) {
 		filter.Name = text
@@ -75,7 +71,8 @@ func (fa *FlowApp) filterModal() {
 
 	form := tview.NewForm()
 	form.AddFormItem(actionDropDown)
-	form.AddFormItem(reporterDropDown)
+	form.AddFormItem(portInputField)
+	// form.AddFormItem(reporterDropDown)
 	form.AddFormItem(namespaceInputField)
 	form.AddFormItem(nameInputField)
 	form.AddButton("Save", func() {
@@ -120,6 +117,6 @@ func (fa *FlowApp) filterModal() {
 	modal := tview.NewFlex()
 	modal.AddItem(modalFlex, 0, 1, true)
 
-	applyTheme(form, actionDropDown, reporterDropDown, namespaceInputField, nameInputField)
+	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField)
 	fa.pages.AddPage(modalName, modal, true, true)
 }

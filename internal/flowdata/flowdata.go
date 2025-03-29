@@ -147,8 +147,9 @@ type FlowData struct {
 }
 
 type FilterAttributes struct {
-	Action    string
-	Reporter  string
+	Action string
+	// Reporter  string
+	Port      int
 	Namespace string
 	Name      string
 	From      time.Time
