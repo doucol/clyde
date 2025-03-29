@@ -15,9 +15,7 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
-			// fa.fas.sumRow, _ = tableData.GetSelection()
 			if fa.fas.sumRow > 0 {
-				// fa.fas.sumID = tableData.GetCell(fa.fas.sumRow, 0).GetReference().(int)
 				logrus.Debugf("flow state: : %+v", fa.fas)
 				fa.pages.SwitchToPage(pageSumDetailName)
 				return nil
@@ -55,9 +53,7 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEnter:
-			// fa.fas.flowRow, _ = tableData.GetSelection()
 			if fa.fas.flowRow > 0 {
-				// fa.fas.flowID = tableData.GetCell(fa.fas.flowRow, 0).GetReference().(int)
 				logrus.Debugf("flow state: : %+v", fa.fas)
 				fa.pages.AddAndSwitchToPage(pageFlowDetailName, fa.viewFlowDetail(), true)
 				return nil
