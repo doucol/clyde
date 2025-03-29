@@ -32,7 +32,11 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 	})
 
 	tableData.SetFocusFunc(func() {
-		tableData.Select(fa.fas.sumRow, 0)
+		if fa.fas.sumRow == 0 && tableData.GetRowCount() > 1 {
+			tableData.Select(1, 0)
+		} else {
+			tableData.Select(fa.fas.sumRow, 0)
+		}
 	})
 
 	flex := tview.NewFlex()
@@ -73,7 +77,11 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 	})
 
 	tableData.SetFocusFunc(func() {
-		tableData.Select(fa.fas.flowRow, 0)
+		if fa.fas.flowRow == 0 && tableData.GetRowCount() > 1 {
+			tableData.Select(1, 0)
+		} else {
+			tableData.Select(fa.fas.flowRow, 0)
+		}
 	})
 
 	flex := tview.NewFlex()
