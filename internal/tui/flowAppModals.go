@@ -78,6 +78,7 @@ func (fa *FlowApp) filterModal() {
 	form.AddButton("Save", func() {
 		global.SetFilter(filter)
 		logrus.Debugf("Filter: %+v", filter)
+		fa.fas = &flowAppState{}
 		fa.pages.RemovePage(modalName)
 	})
 	form.AddButton("Cancel", func() {
@@ -85,6 +86,7 @@ func (fa *FlowApp) filterModal() {
 	})
 	form.AddButton("Clear", func() {
 		global.SetFilter(flowdata.FilterAttributes{})
+		fa.fas = &flowAppState{}
 		fa.pages.RemovePage(modalName)
 	})
 

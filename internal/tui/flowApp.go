@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/gdamore/tcell/v2"
@@ -27,13 +27,12 @@ type flowAppState struct {
 }
 
 type FlowApp struct {
-	mu      *sync.Mutex
-	app     *tview.Application
-	fds     *flowdata.FlowDataStore
-	fc      *flowcache.FlowCache
-	fas     *flowAppState
-	stopped bool
-	pages   *tview.Pages
+	mu    *sync.Mutex
+	app   *tview.Application
+	fds   *flowdata.FlowDataStore
+	fc    *flowcache.FlowCache
+	fas   *flowAppState
+	pages *tview.Pages
 }
 
 func NewFlowApp(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) *FlowApp {
@@ -42,18 +41,19 @@ func NewFlowApp(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) *FlowApp {
 	pages.SetBackgroundColor(bgColor).SetBorderColor(borderColor).SetTitleColor(titleColor)
 	pages.SetBorderStyle(tcell.StyleDefault.Foreground(borderColor).Background(bgColor))
 	fas := &flowAppState{}
-	return &FlowApp{&sync.Mutex{}, tview.NewApplication(), fds, fc, fas, false, pages}
+	app := tview.NewApplication()
+	return &FlowApp{&sync.Mutex{}, app, fds, fc, fas, pages}
 }
 
 func (fa *FlowApp) Run(ctx context.Context) error {
 	defer fa.Stop()
-	cmdctx := cmdContext.CmdContextFromContext(ctx)
+	cc := cmdctx.CmdCtxFromContext(ctx)
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC || (event.Key() == tcell.KeyRune && event.Rune() == 'q') {
 			fa.Stop()
-			cmdctx.Cancel()
+			cc.Cancel()
 			return nil
 		}
 		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
@@ -91,8 +91,8 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 func (fa *FlowApp) Stop() {
 	fa.mu.Lock()
 	defer fa.mu.Unlock()
-	if fa.app != nil && !fa.stopped {
+	if fa.app != nil {
 		fa.app.Stop()
-		fa.stopped = true
+		fa.app = nil
 	}
 }

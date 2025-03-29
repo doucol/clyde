@@ -5,16 +5,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/doucol/clyde/internal/cmdContext"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-func ReadFileFromPod(ctx context.Context, namespace, podName, containerName, filePath string) (string, error) {
-	config := cmdContext.K8sConfigFromContext(ctx)
-	clientset := cmdContext.ClientsetFromContext(ctx)
+func ReadFileFromPod(ctx context.Context, config *rest.Config, clientset *kubernetes.Clientset, namespace, podName, containerName, filePath string) (string, error) {
 	// Prepare the request to execute command in the pod
 	req := clientset.CoreV1().RESTClient().Post().
 		Resource("pods").

@@ -1,4 +1,4 @@
-package cmdContext
+package cmdctx
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type cmdContextKeyType string
+type cmdCtxKeyType string
 
-const cmdContextKey cmdContextKeyType = "CmdContextKey"
+const cmdCtxKey cmdCtxKeyType = "CmdContextKey"
 
-type CmdContext struct {
+type CmdCtx struct {
 	kubeConfig  string
 	kubeContext string
 	k8scfg      *rest.Config
@@ -24,13 +24,17 @@ type CmdContext struct {
 	cancel      context.CancelFunc
 }
 
-func (c *CmdContext) ToContext(ctx context.Context) context.Context {
-	newctx, cancel := context.WithCancel(ctx)
-	c.cancel = cancel
-	return context.WithValue(newctx, cmdContextKey, c)
+func NewCmdCtx(kubeConfig, kubeContext string) *CmdCtx {
+	return &CmdCtx{kubeConfig: kubeConfig, kubeContext: kubeContext}
 }
 
-func (c *CmdContext) GetConfig() *rest.Config {
+func (c *CmdCtx) ToContext(ctx context.Context) context.Context {
+	newctx, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+	return context.WithValue(newctx, cmdCtxKey, c)
+}
+
+func (c *CmdCtx) GetK8sConfig() *rest.Config {
 	if c.k8scfg != nil {
 		return c.k8scfg
 	}
@@ -47,11 +51,11 @@ func (c *CmdContext) GetConfig() *rest.Config {
 	return c.k8scfg
 }
 
-func (c *CmdContext) ClientDyn() *dynamic.DynamicClient {
+func (c *CmdCtx) ClientDyn() *dynamic.DynamicClient {
 	if c.dc != nil {
 		return c.dc
 	}
-	config := c.GetConfig()
+	config := c.GetK8sConfig()
 	dc, err := dynamic.NewForConfig(config)
 	if err != nil {
 		panic(err)
@@ -60,11 +64,11 @@ func (c *CmdContext) ClientDyn() *dynamic.DynamicClient {
 	return c.dc
 }
 
-func (c *CmdContext) Clientset() *kubernetes.Clientset {
+func (c *CmdCtx) Clientset() *kubernetes.Clientset {
 	if c.cs != nil {
 		return c.cs
 	}
-	config := c.GetConfig()
+	config := c.GetK8sConfig()
 	cs, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err)
@@ -73,29 +77,25 @@ func (c *CmdContext) Clientset() *kubernetes.Clientset {
 	return c.cs
 }
 
-func (c *CmdContext) Cancel() {
+func (c *CmdCtx) Cancel() {
 	if c.cancel == nil {
 		panic(errors.New("cancel function not set"))
 	}
 	c.cancel()
 }
 
-func CmdContextFromContext(ctx context.Context) *CmdContext {
-	return ctx.Value(cmdContextKey).(*CmdContext)
+func CmdCtxFromContext(ctx context.Context) *CmdCtx {
+	return ctx.Value(cmdCtxKey).(*CmdCtx)
 }
 
-func ClientDynFromContext(ctx context.Context) *dynamic.DynamicClient {
-	return CmdContextFromContext(ctx).ClientDyn()
+func K8sClientDynFromContext(ctx context.Context) *dynamic.DynamicClient {
+	return CmdCtxFromContext(ctx).ClientDyn()
 }
 
-func ClientsetFromContext(ctx context.Context) *kubernetes.Clientset {
-	return CmdContextFromContext(ctx).Clientset()
+func K8sClientsetFromContext(ctx context.Context) *kubernetes.Clientset {
+	return CmdCtxFromContext(ctx).Clientset()
 }
 
 func K8sConfigFromContext(ctx context.Context) *rest.Config {
-	return CmdContextFromContext(ctx).GetConfig()
-}
-
-func NewCmdContext(kubeConfig, kubeContext string) *CmdContext {
-	return &CmdContext{kubeConfig: kubeConfig, kubeContext: kubeContext}
+	return CmdCtxFromContext(ctx).GetK8sConfig()
 }

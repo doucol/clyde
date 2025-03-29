@@ -4,27 +4,29 @@ import (
 	"sync"
 
 	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/rivo/tview"
 )
 
 type GlobalState struct {
 	Filter flowdata.FilterAttributes
+	app    *tview.Application
 }
 
 var (
-	_mu = &sync.RWMutex{}
-	_gs = GlobalState{}
+	mu = sync.RWMutex{}
+	gs = GlobalState{}
 )
 
 func GetState() GlobalState {
-	_mu.RLock()
-	defer _mu.RUnlock()
-	return _gs
+	mu.RLock()
+	defer mu.RUnlock()
+	return gs
 }
 
-func SetState(gs GlobalState) {
-	_mu.Lock()
-	defer _mu.Unlock()
-	_gs = gs
+func SetState(g GlobalState) {
+	mu.Lock()
+	defer mu.Unlock()
+	gs = g
 }
 
 func GetFilter() flowdata.FilterAttributes {
@@ -32,7 +34,7 @@ func GetFilter() flowdata.FilterAttributes {
 }
 
 func SetFilter(fa flowdata.FilterAttributes) {
-	_mu.Lock()
-	defer _mu.Unlock()
-	_gs.Filter = fa
+	mu.Lock()
+	defer mu.Unlock()
+	gs.Filter = fa
 }

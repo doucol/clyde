@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/util"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/portforward"
@@ -43,19 +43,22 @@ type DataCatcher struct {
 	containerName  string
 	urlPath        string
 	PortEnvVarName string
+	recoverFunc    func()
 }
 
-func NewDataCatcher(namespace, containerName, urlPath string, catcher CatcherFunc) *DataCatcher {
+func NewDataCatcher(namespace, containerName, urlPath string, catcher CatcherFunc, recover func()) *DataCatcher {
 	return &DataCatcher{
 		namespace:      namespace,
 		containerName:  containerName,
 		urlPath:        urlPath,
 		catcher:        catcher,
 		PortEnvVarName: "PORT",
+		recoverFunc:    recover,
 	}
 }
 
 func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
+	defer dc.recoverFunc()
 	select {
 	case <-ctx.Done():
 		log.Debug("done signal received - not entering CatchDataFromSSEStream")
@@ -64,10 +67,11 @@ func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
 		log.Debug("entering data catcher")
 	}
 
-	config := cmdContext.K8sConfigFromContext(ctx)
+	config := cmdctx.K8sConfigFromContext(ctx)
+	clientset := cmdctx.K8sClientsetFromContext(ctx)
 
 	// URL for the portforward endpoint on the pod
-	podName, port, err := util.GetPodAndEnvVarByContainerName(ctx, dc.namespace, dc.containerName, dc.PortEnvVarName)
+	podName, port, err := util.GetPodAndEnvVarByContainerName(ctx, clientset, dc.namespace, dc.containerName, dc.PortEnvVarName)
 	if err != nil {
 		return err
 	}
@@ -111,6 +115,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		defer util.ChanSendEmpty(stopChan, 2)
+		defer dc.recoverFunc()
 		log.Debugf("Starting port forward from localhost:%d to %s/%s:%s", freePort, dc.namespace, podName, port)
 		if err := pf.ForwardPorts(); err != nil {
 			log.Debugf("error: ForwardPorts return error: %s", err.Error())
@@ -122,6 +127,7 @@ func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		defer util.ChanSendEmpty(stopChan, 2)
+		defer dc.recoverFunc()
 		select {
 		case <-readyChan:
 			// Wait for the port forwarding to be ready

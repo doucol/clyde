@@ -24,7 +24,7 @@ const (
 var NOTUI = os.Getenv("NOTUI") != ""
 
 func WatchFlows(ctx context.Context) error {
-	// cctx := cmdContext.CmdContextFromContext(ctx)
+	// cctx := cmdCtx.CmdContextFromContext(ctx)
 	wg := sync.WaitGroup{}
 	fds, err := flowdata.NewFlowDataStore()
 	if err != nil {
@@ -54,14 +54,22 @@ func WatchFlows(ctx context.Context) error {
 	flowCache := flowcache.NewFlowCache(ctx, fds)
 	flowApp := tui.NewFlowApp(fds, flowCache)
 
+	recoverFunc := func() {
+		if err := recover(); err != nil {
+			flowApp.Stop()
+			panic(err)
+		}
+	}
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer flowApp.Stop()
+		defer recoverFunc()
 		ticker := time.Tick(2 * time.Second)
 		var lastError error
 		for {
-			dc := catcher.NewDataCatcher(CalicoNamespace, WhiskerContainer, UrlPath, flowCatcher)
+			dc := catcher.NewDataCatcher(CalicoNamespace, WhiskerContainer, UrlPath, flowCatcher, recoverFunc)
 			if err := dc.CatchDataFromSSEStream(ctx); err != nil {
 				// Don't keep logging the same error
 				if !errors.Is(err, lastError) {
@@ -92,6 +100,7 @@ func WatchFlows(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			defer flowApp.Stop()
+			defer recoverFunc()
 			if err := flowApp.Run(ctx); err != nil {
 				log.Panicf("error running flow app: %v", err)
 			}

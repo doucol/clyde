@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/doucol/clyde/cmd/watch"
-	"github.com/doucol/clyde/internal/cmdContext"
+	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -59,16 +59,16 @@ func Execute() int {
 		//   - the CmdContext also contains the Cancel func which in turn
 		//   calls 'cancel()' on the context triggering app shutdown everywhere
 		//   through the context <-Done() channel
-		cmdctx := cmdContext.NewCmdContext(kubeConfig, kubeContext)
-		newctx := cmdctx.ToContext(cmd.Context())
-		cmdctx = cmdContext.CmdContextFromContext(newctx)
+		cc := cmdctx.NewCmdCtx(kubeConfig, kubeContext)
+		ctx := cc.ToContext(cmd.Context())
+		cc = cmdctx.CmdCtxFromContext(ctx)
 		go func() {
 			<-stopSignal
-			cmdctx.Cancel()
+			cc.Cancel()
 		}()
-		cmd.SetContext(newctx)
+		cmd.SetContext(ctx)
 	}
-	defer dumpLogger()
+	defer closeLogger()
 	if err := rootCmd.Execute(); err != nil {
 		return -1
 	}
@@ -92,11 +92,6 @@ func initLogger() {
 	}
 
 	var err error
-	err = logger.Clear()
-	if err != nil {
-		panic(err)
-	}
-
 	logStore, err = logger.New()
 	if err != nil {
 		panic(err)
@@ -107,21 +102,9 @@ func initLogger() {
 	logrus.Infof("Logger initialized. Log level set to '%s'", logLevel)
 }
 
-func dumpLogger() {
-	if logStore == nil {
-		return
-	}
-	logStore.Stop()
-	err := logStore.Dump(os.Stderr)
-	if err != nil {
-		panic(err)
-	}
-	err = logStore.Close()
-	if err != nil {
-		panic(err)
-	}
-	err = logger.Clear()
-	if err != nil {
-		panic(err)
+func closeLogger() {
+	if logStore != nil {
+		logStore.Close()
+		logStore.Dump(os.Stderr)
 	}
 }
