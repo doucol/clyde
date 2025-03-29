@@ -10,6 +10,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func (fa *FlowApp) filterChange(filter flowdata.FilterAttributes) {
+	global.SetFilter(filter)
+	fa.fas = &flowAppState{}
+	fa.pages.SwitchToPage(pageSummaryName)
+	logrus.Debugf("Filter: %+v", filter)
+}
+
 func (fa *FlowApp) filterModal() {
 	const modalName = "filterModal"
 
@@ -76,17 +83,14 @@ func (fa *FlowApp) filterModal() {
 	form.AddFormItem(namespaceInputField)
 	form.AddFormItem(nameInputField)
 	form.AddButton("Save", func() {
-		global.SetFilter(filter)
-		logrus.Debugf("Filter: %+v", filter)
-		fa.fas = &flowAppState{}
+		fa.filterChange(filter)
 		fa.pages.RemovePage(modalName)
 	})
 	form.AddButton("Cancel", func() {
 		fa.pages.RemovePage(modalName)
 	})
 	form.AddButton("Clear", func() {
-		global.SetFilter(flowdata.FilterAttributes{})
-		fa.fas = &flowAppState{}
+		fa.filterChange(flowdata.FilterAttributes{})
 		fa.pages.RemovePage(modalName)
 	})
 

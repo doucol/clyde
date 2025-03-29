@@ -58,7 +58,6 @@ func NewDataCatcher(namespace, containerName, urlPath string, catcher CatcherFun
 }
 
 func (dc *DataCatcher) CatchDataFromSSEStream(ctx context.Context) error {
-	defer dc.recoverFunc()
 	select {
 	case <-ctx.Done():
 		log.Debug("done signal received - not entering CatchDataFromSSEStream")

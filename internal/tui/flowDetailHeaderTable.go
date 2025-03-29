@@ -72,6 +72,9 @@ func (fdt *flowDetailHeaderTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowDetailHeaderTable) GetRowCount() int {
+	if fdt.fas.FlowID <= 0 {
+		return 1
+	}
 	fdt.fd = fdt.fds.GetFlowDetail(fdt.fas.FlowID)
 	return 2
 }

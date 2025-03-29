@@ -85,6 +85,9 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
+	if fdt.fas.SumID <= 0 {
+		return 1
+	}
 	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.fas.SumID)
 	return len(fdt.flows) + 1
 }

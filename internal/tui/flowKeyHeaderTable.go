@@ -62,6 +62,9 @@ func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowKeyHeaderTable) GetRowCount() int {
+	if fdt.fas.SumID <= 0 {
+		return 1
+	}
 	fdt.fs = fdt.fds.GetFlowSum(fdt.fas.SumID)
 	if fdt.fs == nil {
 		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", fdt.fas.SumID))

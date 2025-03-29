@@ -80,7 +80,6 @@ func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 
 func (fst *flowSumTable) GetRowCount() int {
 	fst.fss = fst.fc.GetFlowSums()
-	// Need to add 1 to account for the header row
 	return len(fst.fss) + 1
 }
 
