@@ -2,7 +2,6 @@ package flowdata
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -160,26 +159,14 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 
 func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []*FlowData {
 	fd := []*FlowData{}
-	useFilter := (filter != (FilterAttributes{}))
-	if !useFilter {
-		err := fds.db.Find("SumID", sumID, &fd)
-		if err != nil && !errors.Is(err, storm.ErrNotFound) {
-			logrus.WithError(err).Panic("error getting all flow sums")
-		}
-	} else {
-		matchers := []q.Matcher{}
-		matchers = append(matchers, q.Eq("SumID", sumID))
-		if filter.Action != "" {
-			matchers = append(matchers, q.Eq("Action", filter.Action))
-		}
-		if filter.Port > 0 {
-			matchers = append(matchers, q.Eq("DestPort", filter.Port))
-		}
-		query := fds.db.Select(matchers...)
-		err := query.Find(&fd)
-		if err != nil && !errors.Is(err, storm.ErrNotFound) {
-			panic(fmt.Errorf("error getting flow detail: %d, %v", sumID, err))
-		}
+	err := fds.db.Find("SumID", sumID, &fd)
+	if err != nil && !errors.Is(err, storm.ErrNotFound) {
+		logrus.WithError(err).Panic("error getting all flow sums")
+	}
+	if filter.Action != "" {
+		fd = util.FilterSlice(fd, func(f *FlowData) bool {
+			return f.Action == filter.Action
+		})
 	}
 	return fd
 }
