@@ -147,13 +147,10 @@ type FlowData struct {
 }
 
 type FilterAttributes struct {
-	Action string
-	// Reporter  string
+	Action    string
 	Port      int
 	Namespace string
 	Name      string
-	From      time.Time
-	To        time.Time
 }
 
 // flowdata.FlowItem interface

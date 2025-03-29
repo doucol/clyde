@@ -51,7 +51,9 @@ func newFlowSumDetailTable(fc *flowcache.FlowCache, fas *flowAppState) *flowSumD
 
 func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
-		return hdrCell(fdt.colTitles[column], 1, 1)
+		tc := hdrCell(fdt.colTitles[column], 1, 1)
+		tc.SetReference(0)
+		return tc
 	}
 
 	fd := fdt.flows[row-1]
@@ -85,10 +87,10 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
-	if fdt.fas.SumID <= 0 {
+	if fdt.fas.sumID <= 0 {
 		return 1
 	}
-	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.fas.SumID)
+	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.fas.sumID)
 	return len(fdt.flows) + 1
 }
 

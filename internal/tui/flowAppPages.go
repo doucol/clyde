@@ -5,6 +5,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 func (fa *FlowApp) viewSummary() tview.Primitive {
@@ -14,9 +15,10 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
-			fa.fas.SumRow, _ = tableData.GetSelection()
-			if fa.fas.SumRow > 0 {
-				fa.fas.SumID = tableData.GetCell(fa.fas.SumRow, 0).GetReference().(int)
+			// fa.fas.sumRow, _ = tableData.GetSelection()
+			if fa.fas.sumRow > 0 {
+				// fa.fas.sumID = tableData.GetCell(fa.fas.sumRow, 0).GetReference().(int)
+				logrus.Debugf("flow state: : %+v", fa.fas)
 				fa.pages.SwitchToPage(pageSumDetailName)
 				return nil
 			}
@@ -24,8 +26,15 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 		return event
 	})
 
+	tableData.SetSelectionChangedFunc(func(row, column int) {
+		fa.fas.setSum(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+	tableData.SetSelectedFunc(func(row, column int) {
+		fa.fas.setSum(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+
 	tableData.SetFocusFunc(func() {
-		tableData.Select(fa.fas.SumRow, 0)
+		tableData.Select(fa.fas.sumRow, 0)
 	})
 
 	flex := tview.NewFlex()
@@ -46,9 +55,10 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyEnter:
-			fa.fas.FlowRow, _ = tableData.GetSelection()
-			if fa.fas.FlowRow > 0 {
-				fa.fas.FlowID = tableData.GetCell(fa.fas.FlowRow, 0).GetReference().(int)
+			// fa.fas.flowRow, _ = tableData.GetSelection()
+			if fa.fas.flowRow > 0 {
+				// fa.fas.flowID = tableData.GetCell(fa.fas.flowRow, 0).GetReference().(int)
+				logrus.Debugf("flow state: : %+v", fa.fas)
 				fa.pages.AddAndSwitchToPage(pageFlowDetailName, fa.viewFlowDetail(), true)
 				return nil
 			}
@@ -59,8 +69,15 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 		return event
 	})
 
+	tableData.SetSelectionChangedFunc(func(row, column int) {
+		fa.fas.setFlow(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+	tableData.SetSelectedFunc(func(row, column int) {
+		fa.fas.setFlow(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+
 	tableData.SetFocusFunc(func() {
-		tableData.Select(fa.fas.FlowRow, 0)
+		tableData.Select(fa.fas.flowRow, 0)
 	})
 
 	flex := tview.NewFlex()
@@ -78,7 +95,7 @@ func (fa *FlowApp) viewFlowDetail() tview.Primitive {
 	moreDetails := tview.NewTextView()
 	moreDetails.SetBorder(true).SetTitle("More Details")
 
-	fd := fa.fds.GetFlowDetail(fa.fas.FlowID)
+	fd := fa.fds.GetFlowDetail(fa.fas.flowID)
 	viewText := fmt.Sprintf("SRC LABELS: %s\n\nDST LABELS: %s\n\nPolicy Hits Enforced:\n\n%sPolicy Hits Pending:\n\n%s",
 		fd.SourceLabels, fd.DestLabels, policyHitsToString(fd.Policies.Enforced), policyHitsToString(fd.Policies.Pending))
 	moreDetails.SetText(viewText)

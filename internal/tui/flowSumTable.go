@@ -46,7 +46,9 @@ func newFlowSumTable(fc *flowcache.FlowCache) *flowSumTable {
 
 func (fst *flowSumTable) GetCell(row, column int) *tview.TableCell {
 	if row == 0 {
-		return hdrCell(fst.colTitles[column], 1, 1)
+		tc := hdrCell(fst.colTitles[column], 1, 1)
+		tc.SetReference(0)
+		return tc
 	}
 
 	fs := fst.fss[row-1]
