@@ -4,12 +4,10 @@ import (
 	"sync"
 
 	"github.com/doucol/clyde/internal/flowdata"
-	"github.com/rivo/tview"
 )
 
 type GlobalState struct {
 	Filter flowdata.FilterAttributes
-	app    *tview.Application
 }
 
 var (
