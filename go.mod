@@ -4,6 +4,7 @@ go 1.23.6
 
 require (
 	github.com/asdine/storm/v3 v3.2.1
+	github.com/blugelabs/bluge v0.2.2
 	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/rivo/tview v0.0.0-20250325173046-7b72abf45814
 	github.com/sirupsen/logrus v1.9.3
@@ -15,7 +16,20 @@ require (
 )
 
 require (
+	github.com/RoaringBitmap/roaring v1.9.4 // indirect
+	github.com/axiomhq/hyperloglog v0.2.5 // indirect
+	github.com/bits-and-blooms/bitset v1.22.0 // indirect
+	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
+	github.com/blevesearch/mmap-go v1.0.4 // indirect
+	github.com/blevesearch/segment v0.9.1 // indirect
+	github.com/blevesearch/snowballstem v0.9.0 // indirect
+	github.com/blevesearch/vellum v1.1.0 // indirect
+	github.com/blugelabs/bluge_segment_api v0.2.0 // indirect
+	github.com/blugelabs/ice v1.0.0 // indirect
+	github.com/blugelabs/ice/v2 v2.0.1 // indirect
+	github.com/caio/go-tdigest v3.1.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
@@ -25,6 +39,7 @@ require (
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -33,12 +48,15 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kamstrup/intmap v0.5.1 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/pkg/errors v0.9.1 // indirect

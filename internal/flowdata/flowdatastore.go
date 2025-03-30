@@ -4,9 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/q"
+	"github.com/blugelabs/bluge"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -14,6 +16,8 @@ import (
 
 type FlowDataStore struct {
 	db *storm.DB
+	// idx bleve.Index
+	idx *bluge.Writer
 }
 
 type FlowItem interface {
@@ -22,6 +26,10 @@ type FlowItem interface {
 
 func dbPath() string {
 	return filepath.Join(util.GetDataPath(), "flowdata.db")
+}
+
+func idxPath() string {
+	return filepath.Join(util.GetDataPath(), "flowdata.idx")
 }
 
 func NewFlowDataStore() (*FlowDataStore, error) {
@@ -38,7 +46,33 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FlowDataStore{db: db}, nil
+
+	config := bluge.DefaultConfig(idxPath())
+	idx, err := bluge.OpenWriter(config)
+	if err != nil {
+		return nil, err
+	}
+
+	// doc := bluge.NewDocument("example").
+	// 	AddField(bluge.NewTextField("name", "bluge"))
+	//
+	// err = writer.Update(doc.ID(), doc)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// var idx bleve.Index
+	// idxpath := idxPath()
+	// if util.FileExists(idxpath) {
+	// 	idx, err = bleve.Open(idxpath)
+	// } else {
+	// 	mapping := bleve.NewIndexMapping()
+	// 	idx, err = bleve.NewUsing(idxpath, mapping, "scorch", "scorch", nil)
+	// }
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return &FlowDataStore{db: db, idx: idx}, nil
+	return &FlowDataStore{db: db, idx: idx}, nil
 }
 
 func Clear() error {
@@ -46,11 +80,16 @@ func Clear() error {
 	if util.FileExists(dbPath) {
 		return os.Remove(dbPath)
 	}
+	idxPath := idxPath()
+	if util.FileExists(idxPath) {
+		return os.Remove(idxPath)
+	}
 	return nil
 }
 
 func (fds *FlowDataStore) Close() {
 	runtime.HandleError(fds.db.Close())
+	runtime.HandleError(fds.idx.Close())
 }
 
 func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
@@ -88,8 +127,31 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	err = fds.Index(fd)
+	if err != nil {
+		return nil, false, err
+	}
 	committed = true
 	return fs, newSum, nil
+}
+
+func (fds *FlowDataStore) Index(fd *FlowData) error {
+	doc := bluge.NewDocument(strconv.Itoa(fd.GetID()))
+	doc.AddField(bluge.NewTextField("sum_id", strconv.Itoa(fd.SumID)))
+	doc.AddField(bluge.NewTextField("source_namespace", fd.SourceNamespace))
+	doc.AddField(bluge.NewTextField("source_name", fd.SourceName))
+	doc.AddField(bluge.NewTextField("source_labels", fd.SourceLabels))
+	doc.AddField(bluge.NewTextField("dest_namespace", fd.DestNamespace))
+	doc.AddField(bluge.NewTextField("dest_name", fd.DestName))
+	doc.AddField(bluge.NewTextField("dest_labels", fd.DestLabels))
+	doc.AddField(bluge.NewTextField("proto", fd.Protocol))
+	doc.AddField(bluge.NewTextField("dest_port", strconv.FormatInt(fd.DestPort, 10)))
+	doc.AddField(bluge.NewTextField("action", fd.Action))
+	doc.AddField(bluge.NewTextField("reporter", fd.Reporter))
+	doc.AddField(bluge.NewDateTimeField("start_time", fd.StartTime))
+	doc.AddField(bluge.NewDateTimeField("end_time", fd.EndTime))
+	err := fds.idx.Update(doc.ID(), doc)
+	return err
 }
 
 func (fds *FlowDataStore) GetFlowSum(id int) *FlowSum {
