@@ -151,6 +151,7 @@ type FilterAttributes struct {
 	Port      int
 	Namespace string
 	Name      string
+	Label     string
 }
 
 // flowdata.FlowItem interface

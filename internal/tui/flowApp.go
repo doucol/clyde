@@ -76,8 +76,10 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 			return nil
 		}
 		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
-			fa.filterModal()
-			return nil
+			if !fa.pages.HasPage(modalName) {
+				fa.filterModal()
+				return nil
+			}
 		}
 		return event
 	})

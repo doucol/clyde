@@ -4,9 +4,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/asdine/storm/v3"
-	"github.com/asdine/storm/v3/q"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -74,7 +74,7 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
 			return nil, false, err
 		}
 	}
-	fs = toSum(fd, fs)
+	fs = flowToFlowSum(fd, fs)
 	err = tx.Save(fs)
 	if err != nil {
 		return nil, false, err
@@ -107,39 +107,35 @@ func (fds *FlowDataStore) GetFlowSum(id int) *FlowSum {
 
 func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 	fs := []*FlowSum{}
-	useFilter := (filter != (FilterAttributes{}))
-	if !useFilter {
-		err := fds.db.AllByIndex("Key", &fs)
-		if err != nil && !errors.Is(err, storm.ErrNotFound) {
-			logrus.WithError(err).Panic("error getting all flow sums")
-		}
-	} else {
-		matchers := []q.Matcher{}
-		if filter.Action != "" {
-			matchers = append(matchers, q.Eq("Action", filter.Action))
-		}
-		if filter.Port > 0 {
-			matchers = append(matchers, q.Eq("DestPort", filter.Port))
-		}
-		if filter.Namespace != "" {
-			qor := q.Or(
-				q.Re("SourceNamespace", filter.Namespace),
-				q.Re("DestNamespace", filter.Namespace),
-			)
-			matchers = append(matchers, qor)
-		}
-		if filter.Name != "" {
-			qor := q.Or(
-				q.Re("SourceName", filter.Name),
-				q.Re("DestName", filter.Name),
-			)
-			matchers = append(matchers, qor)
-		}
-		query := fds.db.Select(matchers...).OrderBy("Key")
-		err := query.Find(&fs)
-		if err != nil && !errors.Is(err, storm.ErrNotFound) {
-			logrus.WithError(err).Panic("error getting all flow sums")
-		}
+	err := fds.db.AllByIndex("Key", &fs)
+	if err != nil && !errors.Is(err, storm.ErrNotFound) {
+		logrus.WithError(err).Panic("error getting all flow sums")
+	}
+	if filter != (FilterAttributes{}) {
+		fs = util.FilterSlice(fs, func(f *FlowSum) bool {
+			if filter.Action != "" && f.Action != filter.Action {
+				return false
+			}
+			if filter.Port > 0 && f.DestPort != int64(filter.Port) {
+				return false
+			}
+			if filter.Namespace != "" {
+				if !strings.Contains(f.SourceNamespace, filter.Namespace) && !strings.Contains(f.DestNamespace, filter.Namespace) {
+					return false
+				}
+			}
+			if filter.Name != "" {
+				if !strings.Contains(f.SourceName, filter.Name) && !strings.Contains(f.DestName, filter.Name) {
+					return false
+				}
+			}
+			if filter.Label != "" {
+				if !strings.Contains(f.SourceLabels, filter.Label) && !strings.Contains(f.DestLabels, filter.Label) {
+					return false
+				}
+			}
+			return true
+		})
 	}
 	return fs
 }
@@ -163,9 +159,17 @@ func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []
 	if err != nil && !errors.Is(err, storm.ErrNotFound) {
 		logrus.WithError(err).Panic("error getting all flow sums")
 	}
-	if filter.Action != "" {
+	if filter != (FilterAttributes{}) {
 		fd = util.FilterSlice(fd, func(f *FlowData) bool {
-			return f.Action == filter.Action
+			if filter.Action != "" && f.Action != filter.Action {
+				return false
+			}
+			if filter.Label != "" {
+				if !strings.Contains(f.SourceLabels, filter.Label) && !strings.Contains(f.DestLabels, filter.Label) {
+					return false
+				}
+			}
+			return true
 		})
 	}
 	return fd

@@ -31,10 +31,12 @@ var (
 	denyColor          = tcell.ColorOrangeRed
 	selBgColor         = tcell.ColorDarkBlue
 	formBgColor        = tcell.ColorLightSlateGrey
+	formFgColor        = tcell.ColorBlack
 	selFgColor         = titleColor
 	selectedStyle      = tcell.StyleDefault.Foreground(selFgColor).Background(selBgColor)
 	tcellValStyle      = tcell.StyleDefault.Background(bgColor).Foreground(textColor)
 	tcellHdrStyle      = tcellValStyle.Bold(true).Underline(false)
+	formLabelStyle     = tcell.StyleDefault.Bold(true).Underline(false)
 	listUnselStyle     = tcell.StyleDefault.Foreground(selFgColor).Background(selBgColor)
 	listSelStyle       = tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(selBgColor)
 	formSelBorderStyle = selectedStyle
@@ -82,6 +84,7 @@ func applyTheme(components ...tview.Primitive) {
 			c.SetFieldBackgroundColor(selBgColor)
 			c.SetFieldTextColor(selFgColor)
 			c.SetLabelColor(titleColor)
+			c.SetLabelStyle(formLabelStyle)
 			c.SetListStyles(listUnselStyle, listSelStyle)
 		case *tview.InputField:
 			c.SetBackgroundColor(selBgColor)
@@ -89,14 +92,15 @@ func applyTheme(components ...tview.Primitive) {
 			c.SetTitleColor(titleColor)
 			c.SetFieldBackgroundColor(selBgColor)
 			c.SetFieldTextColor(selFgColor)
+			c.SetLabelStyle(formLabelStyle)
 			c.SetLabelColor(titleColor)
 		case *tview.Form:
 			c.SetBackgroundColor(formBgColor)
 			c.SetBorderColor(borderColor)
-			c.SetTitleColor(titleColor)
+			c.SetTitleColor(formFgColor)
 			c.SetFieldBackgroundColor(selBgColor)
 			c.SetFieldTextColor(selFgColor)
-			c.SetLabelColor(titleColor)
+			c.SetLabelColor(formFgColor)
 			c.SetFieldStyle(selectedStyle)
 		}
 	}

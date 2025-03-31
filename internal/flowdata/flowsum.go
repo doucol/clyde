@@ -2,6 +2,7 @@ package flowdata
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/doucol/clyde/internal/util"
@@ -38,7 +39,7 @@ func (fs *FlowSum) GetID() int {
 	return fs.ID
 }
 
-func toSum(fd *FlowData, fs *FlowSum) *FlowSum {
+func flowToFlowSum(fd *FlowData, fs *FlowSum) *FlowSum {
 	if fs == nil {
 		fs = &FlowSum{}
 		fs.Key = fd.SumKey()
@@ -51,10 +52,10 @@ func toSum(fd *FlowData, fs *FlowSum) *FlowSum {
 	fs.Action = fd.Action
 	fs.SourceName = fd.SourceName
 	fs.SourceNamespace = fd.SourceNamespace
-	fs.SourceLabels = fd.SourceLabels
+	fs.SourceLabels = aggregateLabels(fd.SourceLabels, fs.SourceLabels)
 	fs.DestName = fd.DestName
 	fs.DestNamespace = fd.DestNamespace
-	fs.DestLabels = fd.DestLabels
+	fs.DestLabels = aggregateLabels(fd.DestLabels, fs.DestLabels)
 	fs.Protocol = fd.Protocol
 	fs.DestPort = fd.DestPort
 	switch fd.Reporter {
@@ -74,4 +75,17 @@ func toSum(fd *FlowData, fs *FlowSum) *FlowSum {
 		panic(errors.New("unknown reporter in flow data: " + Reporter_name[int32(Reporter_value[fd.Reporter])]))
 	}
 	return fs
+}
+
+func aggregateLabels(flowLabels string, sumLabels string) string {
+	sumSlice := strings.Split(sumLabels, "|")
+	set := make(map[string]any, len(sumSlice))
+	for _, item := range sumSlice {
+		set[strings.TrimSpace(item)] = struct{}{}
+	}
+	flowSlice := strings.Split(flowLabels, "|")
+	for _, item := range flowSlice {
+		set[strings.TrimSpace(item)] = struct{}{}
+	}
+	return util.JoinMapKeys(set, " | ")
 }

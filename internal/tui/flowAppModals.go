@@ -17,15 +17,16 @@ func (fa *FlowApp) filterChange(filter flowdata.FilterAttributes) {
 	logrus.Debugf("Filter: %+v", filter)
 }
 
-func (fa *FlowApp) filterModal() {
-	const modalName = "filterModal"
+const modalName = "modalDialog"
 
+func (fa *FlowApp) filterModal() {
 	filter := global.GetFilter()
 
 	actionLabel := "Action:"
 	portLabel := "Port:"
 	namespaceLabel := "Namespace:"
 	nameLabel := "Name:"
+	labelLabel := "Label:"
 
 	actionOptions := []string{"All", "Deny", "Allow"}
 
@@ -70,18 +71,27 @@ func (fa *FlowApp) filterModal() {
 	nameInputField := tview.NewInputField()
 	nameInputField.SetLabel(nameLabel)
 	nameInputField.SetText(filter.Name)
-	namespaceInputField.SetAcceptanceFunc(tview.InputFieldMaxLength(60))
+	nameInputField.SetAcceptanceFunc(tview.InputFieldMaxLength(60))
 	nameInputField.SetFieldWidth(60)
 	nameInputField.SetChangedFunc(func(text string) {
 		filter.Name = text
 	})
 
+	labelInputField := tview.NewInputField()
+	labelInputField.SetLabel(labelLabel)
+	labelInputField.SetText(filter.Label)
+	labelInputField.SetAcceptanceFunc(tview.InputFieldMaxLength(60))
+	labelInputField.SetFieldWidth(60)
+	labelInputField.SetChangedFunc(func(text string) {
+		filter.Label = text
+	})
+
 	form := tview.NewForm()
 	form.AddFormItem(actionDropDown)
 	form.AddFormItem(portInputField)
-	// form.AddFormItem(reporterDropDown)
 	form.AddFormItem(namespaceInputField)
 	form.AddFormItem(nameInputField)
+	form.AddFormItem(labelInputField)
 	form.AddButton("Save", func() {
 		fa.filterChange(filter)
 		fa.pages.RemovePage(modalName)
@@ -123,6 +133,6 @@ func (fa *FlowApp) filterModal() {
 	modal := tview.NewFlex()
 	modal.AddItem(modalFlex, 0, 1, true)
 
-	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField)
+	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField, labelInputField)
 	fa.pages.AddPage(modalName, modal, true, true)
 }
