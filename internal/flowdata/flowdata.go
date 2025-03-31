@@ -152,6 +152,8 @@ type FilterAttributes struct {
 	Namespace string
 	Name      string
 	Label     string
+	DateFrom  time.Time
+	DateTo    time.Time
 }
 
 // flowdata.FlowItem interface

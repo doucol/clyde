@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/global"
@@ -27,6 +30,8 @@ func (fa *FlowApp) filterModal() {
 	namespaceLabel := "Namespace:"
 	nameLabel := "Name:"
 	labelLabel := "Label:"
+	dateFromLabel := "Date From:"
+	dateToLabel := "Date To:"
 
 	actionOptions := []string{"All", "Deny", "Allow"}
 
@@ -86,12 +91,32 @@ func (fa *FlowApp) filterModal() {
 		filter.Label = text
 	})
 
+	dateFromInputField := tview.NewInputField()
+	dateFromInputField.SetLabel(dateFromLabel)
+	dateFromInputField.SetText(tf(filter.DateFrom))
+	dateFromInputField.SetAcceptanceFunc(dateAcceptanceFunc)
+	dateFromInputField.SetFieldWidth(20)
+	dateFromInputField.SetChangedFunc(func(text string) {
+		filter.DateFrom = setDateChanged(text)
+	})
+
+	dateToInputField := tview.NewInputField()
+	dateToInputField.SetLabel(dateToLabel)
+	dateToInputField.SetText(tf(filter.DateTo))
+	dateToInputField.SetAcceptanceFunc(dateAcceptanceFunc)
+	dateToInputField.SetFieldWidth(20)
+	dateToInputField.SetChangedFunc(func(text string) {
+		filter.DateTo = setDateChanged(text)
+	})
+
 	form := tview.NewForm()
 	form.AddFormItem(actionDropDown)
 	form.AddFormItem(portInputField)
 	form.AddFormItem(namespaceInputField)
 	form.AddFormItem(nameInputField)
 	form.AddFormItem(labelInputField)
+	form.AddFormItem(dateFromInputField)
+	form.AddFormItem(dateToInputField)
 	form.AddButton("Save", func() {
 		fa.filterChange(filter)
 		fa.pages.RemovePage(modalName)
@@ -133,6 +158,21 @@ func (fa *FlowApp) filterModal() {
 	modal := tview.NewFlex()
 	modal.AddItem(modalFlex, 0, 1, true)
 
-	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField, labelInputField)
+	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField, labelInputField, dateFromInputField, dateToInputField)
 	fa.pages.AddPage(modalName, modal, true, true)
+}
+
+var dateRegex = regexp.MustCompile(`^\d{0,4}?-\d{0,2}?-\d{0,2}?T\d{0,2}?:\d{0,2}?:\d{0,2}Z$`)
+
+func dateAcceptanceFunc(text string, ch rune) bool {
+	return dateRegex.Match([]byte(strings.TrimSpace(text)))
+}
+
+func setDateChanged(text string) time.Time {
+	if text != "" {
+		if gt, err := time.Parse(time.RFC3339, text); err == nil {
+			return gt
+		}
+	}
+	return time.Time{}
 }

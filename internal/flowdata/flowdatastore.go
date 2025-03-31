@@ -134,6 +134,15 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 					return false
 				}
 			}
+			if !filter.DateFrom.IsZero() && !filter.DateTo.IsZero() {
+				if f.EndTime.Before(filter.DateFrom) || f.StartTime.After(filter.DateTo) {
+					return false
+				}
+			} else if !filter.DateFrom.IsZero() && f.EndTime.Before(filter.DateFrom) {
+				return false
+			} else if !filter.DateTo.IsZero() && f.StartTime.After(filter.DateTo) {
+				return false
+			}
 			return true
 		})
 	}
@@ -168,6 +177,15 @@ func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []
 				if !strings.Contains(f.SourceLabels, filter.Label) && !strings.Contains(f.DestLabels, filter.Label) {
 					return false
 				}
+			}
+			if !filter.DateFrom.IsZero() && !filter.DateTo.IsZero() {
+				if f.EndTime.Before(filter.DateFrom) || f.StartTime.After(filter.DateTo) {
+					return false
+				}
+			} else if !filter.DateFrom.IsZero() && f.EndTime.Before(filter.DateFrom) {
+				return false
+			} else if !filter.DateTo.IsZero() && f.StartTime.After(filter.DateTo) {
+				return false
 			}
 			return true
 		})
