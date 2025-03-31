@@ -82,7 +82,7 @@ func Clear() error {
 	}
 	idxPath := idxPath()
 	if util.FileExists(idxPath) {
-		return os.Remove(idxPath)
+		return os.RemoveAll(idxPath)
 	}
 	return nil
 }
@@ -137,17 +137,17 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
 
 func (fds *FlowDataStore) Index(fd *FlowData) error {
 	doc := bluge.NewDocument(strconv.Itoa(fd.GetID()))
-	doc.AddField(bluge.NewTextField("sum_id", strconv.Itoa(fd.SumID)))
+	doc.AddField(bluge.NewKeywordField("sum_id", strconv.Itoa(fd.SumID)))
 	doc.AddField(bluge.NewTextField("source_namespace", fd.SourceNamespace))
 	doc.AddField(bluge.NewTextField("source_name", fd.SourceName))
 	doc.AddField(bluge.NewTextField("source_labels", fd.SourceLabels))
 	doc.AddField(bluge.NewTextField("dest_namespace", fd.DestNamespace))
 	doc.AddField(bluge.NewTextField("dest_name", fd.DestName))
 	doc.AddField(bluge.NewTextField("dest_labels", fd.DestLabels))
-	doc.AddField(bluge.NewTextField("proto", fd.Protocol))
-	doc.AddField(bluge.NewTextField("dest_port", strconv.FormatInt(fd.DestPort, 10)))
-	doc.AddField(bluge.NewTextField("action", fd.Action))
-	doc.AddField(bluge.NewTextField("reporter", fd.Reporter))
+	doc.AddField(bluge.NewKeywordField("proto", fd.Protocol))
+	doc.AddField(bluge.NewKeywordField("dest_port", strconv.FormatInt(fd.DestPort, 10)))
+	doc.AddField(bluge.NewKeywordField("action", fd.Action))
+	doc.AddField(bluge.NewKeywordField("reporter", fd.Reporter))
 	doc.AddField(bluge.NewDateTimeField("start_time", fd.StartTime))
 	doc.AddField(bluge.NewDateTimeField("end_time", fd.EndTime))
 	err := fds.idx.Update(doc.ID(), doc)
