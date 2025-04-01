@@ -92,6 +92,31 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
 	return fs, newSum, nil
 }
 
+// func (fds *FlowDataStore) aggregateMetrics(tx storm.Node, fd *FlowData, fs *FlowSum) {
+// 	var srcPacketsInSum, srcPacketsOutSum, srcBytesInSum, srcBytesOutSum uint64
+// 	var destPacketsInSum, destPacketsOutSum, destBytesInSum, destBytesOutSum uint64
+// 	agg := func(f *FlowData) {
+// 		reporter := strings.ToLower(f.Reporter)
+// 		switch reporter {
+// 		case "src":
+// 			srcPacketsInSum += uint64(f.PacketsIn)
+// 			srcPacketsOutSum += uint64(f.PacketsOut)
+// 			srcBytesInSum += uint64(f.BytesIn)
+// 			srcBytesOutSum += uint64(f.BytesOut)
+// 		case "dst":
+// 			destPacketsInSum += uint64(f.PacketsIn)
+// 			destPacketsOutSum += uint64(f.PacketsOut)
+// 			destBytesInSum += uint64(f.BytesIn)
+// 			destBytesOutSum += uint64(f.BytesOut)
+// 		}
+// 	}
+// 	fa := FilterAttributes{DateFrom: time.Now().UTC().Add(-5 * time.Minute)}
+// 	for _, sample := range fds.GetFlowsBySumID(fs.ID, fa, tx) {
+// 		agg(sample)
+// 	}
+// 	agg(fd)
+// }
+
 func (fds *FlowDataStore) GetFlowSum(id int) *FlowSum {
 	fs := &FlowSum{}
 	err := fds.db.One("ID", id, fs)
