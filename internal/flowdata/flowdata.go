@@ -156,12 +156,52 @@ type FilterAttributes struct {
 	DateTo    time.Time
 }
 
-// flowdata.FlowItem interface
+// [Flower] interface
 func (fd *FlowData) GetID() int {
 	return fd.ID
 }
 
-func (fd *FlowData) SumKey() string {
+func (fd *FlowData) GetSumKey() string {
 	key := []string{fd.SourceNamespace, fd.SourceName, fd.DestNamespace, fd.DestName, fd.Protocol, fmt.Sprint(fd.DestPort)}
 	return strings.Join(key, "|")
+}
+
+func (fd *FlowData) GetSourceNamespace() string {
+	return fd.SourceNamespace
+}
+
+func (fd *FlowData) GetSourceName() string {
+	return fd.SourceName
+}
+
+func (fd *FlowData) GetSourceLabels() string {
+	return fd.SourceLabels
+}
+
+func (fd *FlowData) GetDestNamespace() string {
+	return fd.DestNamespace
+}
+
+func (fd *FlowData) GetDestName() string {
+	return fd.DestName
+}
+
+func (fd *FlowData) GetDestLabels() string {
+	return fd.DestLabels
+}
+
+func (fd *FlowData) GetAction() string {
+	return fd.Action
+}
+
+func (fd *FlowData) GetPort() int64 {
+	return fd.DestPort
+}
+
+func (fd *FlowData) GetStartTime() time.Time {
+	return fd.StartTime
+}
+
+func (fd *FlowData) GetEndTime() time.Time {
+	return fd.EndTime
 }

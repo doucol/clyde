@@ -10,8 +10,6 @@ import (
 	"github.com/doucol/clyde/internal/global"
 )
 
-type flowCacheEntry []flowdata.FlowItem
-
 type FlowCache struct {
 	fds          *flowdata.FlowDataStore
 	flowSumCache *cache.Cache[string, []*flowdata.FlowSum]

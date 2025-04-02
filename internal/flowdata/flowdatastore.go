@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/asdine/storm/v3"
 	"github.com/doucol/clyde/internal/util"
@@ -16,8 +17,19 @@ type FlowDataStore struct {
 	db *storm.DB
 }
 
-type FlowItem interface {
+type Flower interface {
 	GetID() int
+	GetSumKey() string
+	GetSourceNamespace() string
+	GetSourceName() string
+	GetSourceLabels() string
+	GetDestNamespace() string
+	GetDestName() string
+	GetDestLabels() string
+	GetPort() int64
+	GetAction() string
+	GetStartTime() time.Time
+	GetEndTime() time.Time
 }
 
 func dbPath() string {
@@ -65,7 +77,7 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) (*FlowSum, bool, error) {
 			runtime.HandleError(tx.Rollback())
 		}
 	}()
-	err = tx.One("Key", fd.SumKey(), fs)
+	err = tx.One("Key", fd.GetSumKey(), fs)
 	if err != nil {
 		if errors.Is(err, storm.ErrNotFound) {
 			newSum = true
@@ -138,37 +150,7 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 	}
 	if filter != (FilterAttributes{}) {
 		fs = util.FilterSlice(fs, func(f *FlowSum) bool {
-			if filter.Action != "" && f.Action != filter.Action {
-				return false
-			}
-			if filter.Port > 0 && f.DestPort != int64(filter.Port) {
-				return false
-			}
-			if filter.Namespace != "" {
-				if !strings.Contains(f.SourceNamespace, filter.Namespace) && !strings.Contains(f.DestNamespace, filter.Namespace) {
-					return false
-				}
-			}
-			if filter.Name != "" {
-				if !strings.Contains(f.SourceName, filter.Name) && !strings.Contains(f.DestName, filter.Name) {
-					return false
-				}
-			}
-			if filter.Label != "" {
-				if !strings.Contains(f.SourceLabels, filter.Label) && !strings.Contains(f.DestLabels, filter.Label) {
-					return false
-				}
-			}
-			if !filter.DateFrom.IsZero() && !filter.DateTo.IsZero() {
-				if f.EndTime.Before(filter.DateFrom) || f.StartTime.After(filter.DateTo) {
-					return false
-				}
-			} else if !filter.DateFrom.IsZero() && f.EndTime.Before(filter.DateFrom) {
-				return false
-			} else if !filter.DateTo.IsZero() && f.StartTime.After(filter.DateTo) {
-				return false
-			}
-			return true
+			return filterFlow(f, filter)
 		})
 	}
 	return fs
@@ -195,25 +177,46 @@ func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []
 	}
 	if filter != (FilterAttributes{}) {
 		fd = util.FilterSlice(fd, func(f *FlowData) bool {
-			if filter.Action != "" && f.Action != filter.Action {
-				return false
-			}
-			if filter.Label != "" {
-				if !strings.Contains(f.SourceLabels, filter.Label) && !strings.Contains(f.DestLabels, filter.Label) {
-					return false
-				}
-			}
-			if !filter.DateFrom.IsZero() && !filter.DateTo.IsZero() {
-				if f.EndTime.Before(filter.DateFrom) || f.StartTime.After(filter.DateTo) {
-					return false
-				}
-			} else if !filter.DateFrom.IsZero() && f.EndTime.Before(filter.DateFrom) {
-				return false
-			} else if !filter.DateTo.IsZero() && f.StartTime.After(filter.DateTo) {
-				return false
-			}
-			return true
+			return filterFlow(f, filter)
 		})
 	}
 	return fd
+}
+
+func filterFlow(f Flower, filter FilterAttributes) bool {
+	// These checks are just for FlowSum
+	if _, ok := f.(*FlowSum); ok {
+		if filter.Port > 0 && f.GetPort() != int64(filter.Port) {
+			return false
+		}
+		if filter.Namespace != "" {
+			if !strings.Contains(f.GetSourceNamespace(), filter.Namespace) && !strings.Contains(f.GetDestNamespace(), filter.Namespace) {
+				return false
+			}
+		}
+		if filter.Name != "" {
+			if !strings.Contains(f.GetSourceName(), filter.Name) && !strings.Contains(f.GetDestName(), filter.Name) {
+				return false
+			}
+		}
+	}
+	// These checks are for FlowSum and FlowData
+	if filter.Action != "" && f.GetAction() != filter.Action {
+		return false
+	}
+	if filter.Label != "" {
+		if !strings.Contains(f.GetSourceLabels(), filter.Label) && !strings.Contains(f.GetDestLabels(), filter.Label) {
+			return false
+		}
+	}
+	if !filter.DateFrom.IsZero() && !filter.DateTo.IsZero() {
+		if f.GetEndTime().Before(filter.DateFrom) || f.GetStartTime().After(filter.DateTo) {
+			return false
+		}
+	} else if !filter.DateFrom.IsZero() && f.GetEndTime().Before(filter.DateFrom) {
+		return false
+	} else if !filter.DateTo.IsZero() && f.GetStartTime().After(filter.DateTo) {
+		return false
+	}
+	return true
 }

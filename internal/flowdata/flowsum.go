@@ -34,15 +34,59 @@ type FlowSum struct {
 	DestBytesOut     uint64    `json:"dest_bytes_out"`
 }
 
-// flowdata.FlowItem interface
+// [Flower] interface
 func (fs *FlowSum) GetID() int {
 	return fs.ID
+}
+
+func (fs *FlowSum) GetSumKey() string {
+	return fs.Key
+}
+
+func (fs *FlowSum) GetSourceNamespace() string {
+	return fs.SourceNamespace
+}
+
+func (fs *FlowSum) GetSourceName() string {
+	return fs.SourceName
+}
+
+func (fs *FlowSum) GetSourceLabels() string {
+	return fs.SourceLabels
+}
+
+func (fs *FlowSum) GetDestNamespace() string {
+	return fs.DestNamespace
+}
+
+func (fs *FlowSum) GetDestName() string {
+	return fs.DestName
+}
+
+func (fs *FlowSum) GetDestLabels() string {
+	return fs.DestLabels
+}
+
+func (fs *FlowSum) GetAction() string {
+	return fs.Action
+}
+
+func (fs *FlowSum) GetPort() int64 {
+	return fs.DestPort
+}
+
+func (fs *FlowSum) GetStartTime() time.Time {
+	return fs.StartTime
+}
+
+func (fs *FlowSum) GetEndTime() time.Time {
+	return fs.EndTime
 }
 
 func flowToFlowSum(fd *FlowData, fs *FlowSum) *FlowSum {
 	if fs == nil {
 		fs = &FlowSum{}
-		fs.Key = fd.SumKey()
+		fs.Key = fd.GetSumKey()
 		fs.StartTime = fd.StartTime
 		fs.EndTime = fd.EndTime
 	} else {
