@@ -137,7 +137,7 @@ function version_greater() {
   ! version_greater_equal "$2" "$1"
 }
 
-function goldmain_whisker_crs() {
+function goldmane_whisker_crs() {
   printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Goldmane" "metadata:" "  name: default"
   printf '%s\n%s\n%s\n%s\n%s\n' "---" "apiVersion: operator.tigera.io/v1" "kind: Whisker" "metadata:" "  name: default"
 }
@@ -175,31 +175,25 @@ function calico_version() {
 }
 
 function install_whisker() {
-  if [[ "${WHISKER}" != "true" ]]; then
-    return 0
-  fi
-
   CALICO_VERSION=$(calico_version)
   if ! version_greater_equal "${CALICO_VERSION}" "v3.30"; then
     echo "This version of calico '${CALICO_VERSION}' does not support whisker - not installing."
     return 0
   fi
 
-  echo ""
-  echo "Deploying whisker..."
-
   if whisker_installed; then
-    echo "Whisker is installed."
+    echo "Whisker is already installed."
     return 0
   fi
 
+  echo ""
+  echo "Deploying whisker..."
+
   if ! whisker_cr_installed; then
-    ${KUBECTL} create -f - <<<"$(whisker_cr)"
+    ${KUBECTL} create -f - <<<"$(goldmane_whisker_crs)"
   fi
 
   if ! ${KUBECTL} wait --for=condition=available --timeout=30s tigerastatuses/whisker &>/dev/null; then
-    # NOTE: Without restarting the operator it is hit-or-miss on whether we'll have whisker reliably deployed - need to dig into this more later
-    ${KUBECTL} delete pod --namespace=tigera-operator -l=k8s-app=tigera-operator
     while ! ${KUBECTL} wait --for=condition=available --timeout=30s tigerastatuses/whisker 2>/dev/null; do
       echo "Waiting for 'tigerastatus/whisker' resource to become available..."
       sleep 2
@@ -275,7 +269,7 @@ function install_calico_oss() {
   # Create calico custom resource configurations to kick off the install
   local whiskercr=""
   if [[ "${WHISKER}" == "true" ]]; then
-    whiskercr=$(goldmain_whisker_crs)
+    whiskercr=$(goldmane_whisker_crs)
   fi
 
   ${KUBECTL} create -f - <<EOF
@@ -340,8 +334,6 @@ function create_kind_cluster_and_install() {
 
   install_calico_oss
 
-  install_whisker
-
   install_demo_app
 }
 
@@ -380,7 +372,7 @@ function main() {
     fi
   elif [[ "${1}" == "whisker" ]]; then
     checkOS
-    WHISKER=true install_whisker
+    install_whisker
   elif [[ "${1}" == "del" || "${1}" == "delete" ]]; then
     checkOS
     ${KIND} delete cluster
