@@ -90,7 +90,7 @@ function render_env_vars() {
       WHISKER=false
     fi
   fi
-  if [[ "${HASHREL}" == "true" ]]; then
+  if [[ "${HASHREL}" == "true" && "${OPYAML}" == "" ]]; then
     OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)manifests/tigera-operator.yaml
   fi
   OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
