@@ -312,7 +312,9 @@ EOF
 
 function create_kind_cluster() {
   WORKER_NODES=$(worker_nodes)
-  ${KIND} delete cluster
+  if ${KIND} delete cluster 2>&1 >/dev/null | grep "control-plane"; then
+    sleep 5
+  fi
   ${KIND} create cluster --config - <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
