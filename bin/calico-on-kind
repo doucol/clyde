@@ -11,6 +11,7 @@ set -o pipefail
 OSNAME=$(uname -s)
 DEFAULT_DP=Nftables
 DEFAULT_ENCAP=VXLANCrossSubnet
+DEFAULT_K8SVER=v1.31.6
 if [[ "${OSNAME}" == "Darwin" ]]; then
   DEFAULT_DP=Iptables
   DEFAULT_ENCAP=IPIP
@@ -33,6 +34,7 @@ KUBECTL="kubectl --context=kind-${NAME}"
 KIND="kind --name=${NAME}"
 LATEST_VERSION=${LATEST_VERSION:-}
 ZTPOLICY=${ZTPOLICY:-${DEMOAPP}}
+K8SVER=${K8SVER:-${DEFAULT_K8SVER}}
 
 function print_help() {
   echo "Usage: $0 [new|del|demo|whisker]"
@@ -58,6 +60,8 @@ function print_help() {
   echo "  DEMOAPP  - Install the demo app - valid values: true|false (default: false)"
   echo "  ZTPOLICY - Install a zero-trust policy set onto the Demo App - valid values: true|false. (default is true, if DEMOAPP is true)"
   echo "  OPYAML   - The operator yaml to use for installation (default: varies depending on value for VERSION)"
+  echo "  K8SVER   - The version of Kubernetes to install - this needs to have an associated kind image (default: ${DEFAULT_K8SVER})"
+  echo "             (see kind images for k8s versions here: https://hub.docker.com/r/kindest/node/tags?ordering=name"
   echo ""
   echo "Dependencies:"
   echo "  kind (hence docker), kubectl, jq, curl, sort, grep, head, xargs"
@@ -111,6 +115,7 @@ function confirm_state() {
   echo "  DEMOAPP  - ${DEMOAPP}"
   echo "  ZTPOLICY - ${ZTPOLICY}"
   echo "  OPYAML   - ${OPYAML}"
+  echo "  K8SVER   - ${K8SVER}"
   echo ""
   read -p "Continue y/N? " -n 1 -r REPLY
   echo ""
@@ -315,7 +320,7 @@ function create_kind_cluster() {
   if ${KIND} delete cluster 2>&1 >/dev/null | grep "control-plane"; then
     sleep 5
   fi
-  ${KIND} create cluster --config - <<EOF
+  ${KIND} create cluster --image="kindest/node:${K8SVER}" --config - <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
