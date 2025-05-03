@@ -19,32 +19,6 @@ const (
 	pageFlowDetailName = "flowDetail"
 )
 
-type flowAppState struct {
-	sumID   int
-	sumRow  int
-	flowID  int
-	flowRow int
-}
-
-func (fas *flowAppState) reset() {
-	fas.sumID = 0
-	fas.sumRow = 0
-	fas.flowID = 0
-	fas.flowRow = 0
-}
-
-func (fas *flowAppState) setSum(id, row int) {
-	fas.sumID = id
-	fas.sumRow = row
-	fas.flowID = 0
-	fas.flowRow = 0
-}
-
-func (fas *flowAppState) setFlow(id, row int) {
-	fas.flowID = id
-	fas.flowRow = row
-}
-
 type FlowApp struct {
 	mu    *sync.Mutex
 	app   *tview.Application
