@@ -16,7 +16,7 @@ import (
 func (fa *FlowApp) filterChange(filter flowdata.FilterAttributes) {
 	global.SetFilter(filter)
 	fa.fas.reset()
-	fa.pages.SwitchToPage(pageSummaryName)
+	fa.pages.SwitchToPage(pageSummaryTotalsName)
 	logrus.Debugf("Filter: %+v", filter)
 }
 

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/doucol/clyde/cmd/watch"
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/logger"
+	"github.com/doucol/clyde/internal/whisker"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/util/homedir"
@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	kubeConfig, kubeContext, logLevel string
-	logStore                          *logger.LogStore
+	kubeConfig, kubeContext, logLevel, logFile string
+	logStore                                   *logger.Logger
 )
 
 var rootCmd = &cobra.Command{
@@ -27,7 +27,7 @@ var rootCmd = &cobra.Command{
 	Short: "Project Calico utilities",
 	Long:  "clyde\nA collection of Project Calico utilities",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return cmd.Help()
+		return whisker.WatchFlows(cmd.Context())
 	},
 }
 
@@ -41,12 +41,13 @@ func init() {
 	}
 
 	// Add all global flags
-	rootCmd.PersistentFlags().StringVar(&kubeConfig, "kubeconfig", dflt, "absolute path to the kubeconfig file")
-	rootCmd.PersistentFlags().StringVar(&kubeContext, "kubecontext", "", "(optional) kubeconfig context to use")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "loglevel", "warn", "log level (trace, debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVar(&kubeConfig, "kubeconfig", dflt, "Path to the kubeconfig file to use")
+	rootCmd.PersistentFlags().StringVar(&kubeContext, "context", "", "The name of the kubeconfig context to use")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "loglevel", "warn", "The log level to use (trace, debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVar(&logFile, "logfile", logger.GetDefaultLogFile(), "The log file to use")
 
 	// Add all root commands
-	rootCmd.AddCommand(watch.WatchCmd, aboutCmd, versionCmd)
+	rootCmd.AddCommand(aboutCmd, versionCmd, clearCmd)
 }
 
 func Execute() int {
@@ -76,6 +77,7 @@ func Execute() int {
 }
 
 func initLogger() {
+	logger.SetLogFile(logFile)
 	switch logLevel {
 	case "trace":
 		logrus.SetLevel(logrus.TraceLevel)
@@ -92,7 +94,7 @@ func initLogger() {
 	}
 
 	var err error
-	logStore, err = logger.New()
+	logStore, err = logger.NewLogger()
 	if err != nil {
 		panic(err)
 	}

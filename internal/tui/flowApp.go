@@ -8,15 +8,17 @@ import (
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/doucol/clyde/internal/global"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	pageSummaryName    = "summary"
-	pageSumDetailName  = "sumDetail"
-	pageFlowDetailName = "flowDetail"
+	pageSummaryTotalsName = "summaryTotals"
+	pageSummaryRatesName  = "summaryRates"
+	pageSumDetailName     = "sumDetail"
+	pageFlowDetailName    = "flowDetail"
 )
 
 type FlowApp struct {
@@ -38,21 +40,72 @@ func NewFlowApp(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) *FlowApp {
 	return &FlowApp{&sync.Mutex{}, app, fds, fc, fas, pages}
 }
 
+func (fa *FlowApp) updateSort(event *tcell.EventKey, fieldName string, defaultOrder bool, pageName string) *tcell.EventKey {
+	if page, _ := fa.pages.GetFrontPage(); page == pageName {
+		sa := global.GetSort()
+		asc := defaultOrder
+		if pageName == pageSummaryTotalsName {
+			if sa.SumTotalsFieldName == fieldName {
+				asc = !sa.SumTotalsAscending
+			}
+			global.SetSort(flowdata.SortAttributes{SumTotalsFieldName: fieldName, SumTotalsAscending: asc})
+			return nil
+		} else if pageName == pageSummaryRatesName {
+			if sa.SumRatesFieldName == fieldName {
+				asc = !sa.SumRatesAscending
+			}
+			global.SetSort(flowdata.SortAttributes{SumRatesFieldName: fieldName, SumRatesAscending: asc})
+			return nil
+		}
+	}
+	return event
+}
+
 func (fa *FlowApp) Run(ctx context.Context) error {
 	defer fa.Stop()
 	cc := cmdctx.CmdCtxFromContext(ctx)
 
 	// Set up an input capture to shutdown the app when the user presses Ctrl-C
 	fa.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC || (event.Key() == tcell.KeyRune && event.Rune() == 'q') {
+		stop := func() *tcell.EventKey {
 			fa.Stop()
 			cc.Cancel()
 			return nil
 		}
-		if event.Key() == tcell.KeyRune && event.Rune() == '/' {
-			if !fa.pages.HasPage(modalName) {
-				fa.filterModal()
-				return nil
+
+		switch event.Key() {
+		case tcell.KeyCtrlC:
+			return stop()
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case 'q':
+				return stop()
+			case 'r':
+				if page, _ := fa.pages.GetFrontPage(); page == pageSummaryTotalsName {
+					fa.pages.SwitchToPage(pageSummaryRatesName)
+					return nil
+				}
+			case 't':
+				if page, _ := fa.pages.GetFrontPage(); page == pageSummaryRatesName {
+					fa.pages.SwitchToPage(pageSummaryTotalsName)
+					return nil
+				}
+			case 'p':
+				return fa.updateSort(event, "SourceTotalPacketRate", false, pageSummaryRatesName)
+			case 'P':
+				return fa.updateSort(event, "DestTotalPacketRate", false, pageSummaryRatesName)
+			case 'b':
+				return fa.updateSort(event, "SourceTotalByteRate", false, pageSummaryRatesName)
+			case 'B':
+				return fa.updateSort(event, "DestTotalByteRate", false, pageSummaryRatesName)
+			case 'n':
+				page, _ := fa.pages.GetFrontPage()
+				return fa.updateSort(event, "Key", true, page)
+			case '/':
+				if !fa.pages.HasPage(modalName) {
+					fa.filterModal()
+					return nil
+				}
 			}
 		}
 		return event
@@ -73,7 +126,8 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 		}
 	}()
 
-	fa.pages.AddPage(pageSummaryName, fa.viewSummary(), true, true)
+	fa.pages.AddPage(pageSummaryTotalsName, fa.viewSummary(), true, true)
+	fa.pages.AddPage(pageSummaryRatesName, fa.viewSummaryRates(), true, false)
 	fa.pages.AddPage(pageSumDetailName, fa.viewSumDetail(), true, false)
 
 	// Start with a summary view

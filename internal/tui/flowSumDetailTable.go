@@ -87,10 +87,19 @@ func (fdt *flowSumDetailTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowSumDetailTable) GetRowCount() int {
-	if fdt.fas.sumID <= 0 {
+	id := 0
+	switch fdt.fas.lastHomePage {
+	case pageSummaryTotalsName:
+		id = fdt.fas.sumID
+	case pageSummaryRatesName:
+		id = fdt.fas.rateID
+	default:
+		panic(fmt.Errorf("flowKeyHeaderTable: invalid lastHomePage: %s", fdt.fas.lastHomePage))
+	}
+	if id <= 0 {
 		return 1
 	}
-	fdt.flows = fdt.fc.GetFlowsBySumID(fdt.fas.sumID)
+	fdt.flows = fdt.fc.GetFlowsBySumID(id)
 	return len(fdt.flows) + 1
 }
 

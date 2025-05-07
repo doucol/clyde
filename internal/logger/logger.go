@@ -9,20 +9,33 @@ import (
 	"github.com/doucol/clyde/internal/util"
 )
 
-type LogStore struct {
+type Logger struct {
 	msgs chan []byte
 	wg   *sync.WaitGroup
 }
 
-func logPath() string {
+var logFile string
+
+func SetLogFile(lf string) {
+	logFile = lf
+}
+
+func GetLogFile() string {
+	if logFile == "" {
+		return GetDefaultLogFile()
+	}
+	return logFile
+}
+
+func GetDefaultLogFile() string {
 	return filepath.Join(util.GetDataPath(), "clyde.log")
 }
 
-func New() (*LogStore, error) {
-	lp := logPath()
+func NewLogger() (*Logger, error) {
+	lp := GetLogFile()
 	msgs := make(chan []byte, 1000)
 	wg := &sync.WaitGroup{}
-	ls := &LogStore{
+	ls := &Logger{
 		wg:   wg,
 		msgs: msgs,
 	}
@@ -48,13 +61,13 @@ func New() (*LogStore, error) {
 	return ls, nil
 }
 
-func (l *LogStore) Close() {
+func (l *Logger) Close() {
 	l.msgs <- []byte{}
 	l.wg.Wait()
 }
 
-// [Writer] interface
-func (l *LogStore) Write(p []byte) (n int, err error) {
+// [io.Writer] interface
+func (l *Logger) Write(p []byte) (n int, err error) {
 	length := len(p)
 	if length > 0 {
 		msgb := make([]byte, length)
@@ -64,8 +77,8 @@ func (l *LogStore) Write(p []byte) (n int, err error) {
 	return length, nil
 }
 
-func (l *LogStore) Dump(to io.Writer) {
-	lf, err := os.Open(logPath())
+func (l *Logger) Dump(to io.Writer) {
+	lf, err := os.Open(GetLogFile())
 	if err != nil {
 		panic(err)
 	}

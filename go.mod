@@ -7,6 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/asdine/storm/v3 v3.2.1
 	github.com/gdamore/tcell/v2 v2.8.1
+	github.com/oleiade/reflections v1.1.0
 	github.com/rivo/tview v0.0.0-20250501113434-0c592cd31026
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1

@@ -32,25 +32,6 @@ func WatchFlows(ctx context.Context) error {
 	}
 	defer fds.Close()
 
-	flowCatcher := func(data string) error {
-		var fr flowdata.FlowResponse
-		if err := json.Unmarshal([]byte(data), &fr); err != nil {
-			log.Panicf("error unmarshalling flow data: %v", err)
-		}
-		fd := &flowdata.FlowData{FlowResponse: fr}
-		fs, newSum, err := fds.AddFlow(fd)
-		if err != nil {
-			log.Panicf("error adding flow data: %v", err)
-		}
-		if newSum {
-			log.Debugf("added flow data: new flow sum: %s", fs.Key)
-		} else {
-			log.Debugf("added flow data: existing flow sum: %s", fs.Key)
-		}
-		return nil
-	}
-
-	// Go capture flows
 	flowCache := flowcache.NewFlowCache(ctx, fds)
 	flowApp := tui.NewFlowApp(fds, flowCache)
 
@@ -59,6 +40,19 @@ func WatchFlows(ctx context.Context) error {
 			flowApp.Stop()
 			panic(err)
 		}
+	}
+
+	// Go capture flows
+	fds.Run(recoverFunc)
+
+	flowCatcher := func(data string) error {
+		var fr flowdata.FlowResponse
+		if err := json.Unmarshal([]byte(data), &fr); err != nil {
+			log.Panicf("error unmarshalling flow data: %v", err)
+		}
+		fd := &flowdata.FlowData{FlowResponse: fr}
+		fds.AddFlow(fd)
+		return nil
 	}
 
 	wg.Add(1)

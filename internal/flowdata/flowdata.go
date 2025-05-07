@@ -156,6 +156,13 @@ type FilterAttributes struct {
 	DateTo    time.Time
 }
 
+type SortAttributes struct {
+	SumTotalsFieldName string
+	SumTotalsAscending bool
+	SumRatesFieldName  string
+	SumRatesAscending  bool
+}
+
 // [Flower] interface
 func (fd *FlowData) GetID() int {
 	return fd.ID

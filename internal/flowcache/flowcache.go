@@ -8,6 +8,7 @@ import (
 	"github.com/doucol/clyde/internal/cache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/global"
+	"github.com/doucol/clyde/internal/util"
 )
 
 type FlowCache struct {
@@ -43,11 +44,41 @@ func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
 	return fc
 }
 
-func (fc *FlowCache) GetFlowSums() []*flowdata.FlowSum {
+func (fc *FlowCache) cacheSortedFlowSums(cacheKey string, fieldName string, ascending bool) []*flowdata.FlowSum {
 	if flowSums, ok := fc.flowSumCache.Get(flowSumCacheName); ok {
-		return flowSums
+		fsc := make([]*flowdata.FlowSum, len(flowSums))
+		copy(fsc, flowSums)
+		util.SortSlice(fsc, fieldName, ascending)
+		fc.flowSumCache.SetTTL(cacheKey, fsc, time.Second*5)
+		return fsc
 	}
 	return []*flowdata.FlowSum{}
+}
+
+func (fc *FlowCache) getFlowSums(sortBy string, asc bool) []*flowdata.FlowSum {
+	cacheKey := flowSumCacheName
+	if sortBy != "" {
+		cacheKey = fmt.Sprintf("%s-%s-%t", flowSumCacheName, sortBy, asc)
+	}
+	if flowSums, ok := fc.flowSumCache.Get(cacheKey); ok || len(flowSums) > 0 {
+		if !ok && sortBy != "" {
+			go fc.cacheSortedFlowSums(cacheKey, sortBy, asc)
+		}
+		return flowSums
+	} else if sortBy != "" {
+		return fc.cacheSortedFlowSums(cacheKey, sortBy, asc)
+	}
+	return []*flowdata.FlowSum{}
+}
+
+func (fc *FlowCache) GetFlowSumTotals() []*flowdata.FlowSum {
+	sa := global.GetSort()
+	return fc.getFlowSums(sa.SumTotalsFieldName, sa.SumTotalsAscending)
+}
+
+func (fc *FlowCache) GetFlowSumRates() []*flowdata.FlowSum {
+	sa := global.GetSort()
+	return fc.getFlowSums(sa.SumRatesFieldName, sa.SumRatesAscending)
 }
 
 func (fc *FlowCache) GetFlowsBySumID(sumID int) []*flowdata.FlowData {

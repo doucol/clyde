@@ -32,6 +32,7 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 	})
 
 	tableData.SetFocusFunc(func() {
+		fa.fas.lastHomePage = pageSummaryTotalsName
 		if fa.fas.sumRow == 0 && tableData.GetRowCount() > 1 {
 			tableData.Select(1, 0)
 		} else {
@@ -40,7 +41,46 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 	})
 
 	flex := tview.NewFlex()
-	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary")
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary Totals")
+	flex.AddItem(tableData, 0, 1, true)
+	applyTheme(flex, tableData)
+	return flex
+}
+
+func (fa *FlowApp) viewSummaryRates() tview.Primitive {
+	tbl := newFlowSumRateTable(fa.fc)
+	tableData := newTable().SetBorders(false).SetSelectable(true, false).
+		SetContent(tbl).SetFixed(1, 0)
+
+	tableData.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEnter {
+			if fa.fas.rateRow > 0 {
+				logrus.Debugf("flow state: : %+v", fa.fas)
+				fa.pages.SwitchToPage(pageSumDetailName)
+				return nil
+			}
+		}
+		return event
+	})
+
+	tableData.SetSelectionChangedFunc(func(row, column int) {
+		fa.fas.setRate(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+	tableData.SetSelectedFunc(func(row, column int) {
+		fa.fas.setRate(tableData.GetCell(row, 0).GetReference().(int), row)
+	})
+
+	tableData.SetFocusFunc(func() {
+		fa.fas.lastHomePage = pageSummaryRatesName
+		if fa.fas.rateRow == 0 && tableData.GetRowCount() > 1 {
+			tableData.Select(1, 0)
+		} else {
+			tableData.Select(fa.fas.rateRow, 0)
+		}
+	})
+
+	flex := tview.NewFlex()
+	flex.SetDirection(tview.FlexRow).SetBorder(true).SetTitle("Calico Flow Summary Rates")
 	flex.AddItem(tableData, 0, 1, true)
 	applyTheme(flex, tableData)
 	return flex
@@ -63,7 +103,7 @@ func (fa *FlowApp) viewSumDetail() tview.Primitive {
 				return nil
 			}
 		case tcell.KeyEscape:
-			fa.pages.SwitchToPage(pageSummaryName)
+			fa.pages.SwitchToPage(fa.fas.lastHomePage)
 			return nil
 		}
 		return event

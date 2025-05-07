@@ -64,12 +64,21 @@ func (fdt *flowKeyHeaderTable) GetCell(row, column int) *tview.TableCell {
 }
 
 func (fdt *flowKeyHeaderTable) GetRowCount() int {
-	if fdt.fas.sumID <= 0 {
+	id := 0
+	switch fdt.fas.lastHomePage {
+	case pageSummaryTotalsName:
+		id = fdt.fas.sumID
+	case pageSummaryRatesName:
+		id = fdt.fas.rateID
+	default:
+		panic(fmt.Errorf("flowKeyHeaderTable: invalid lastHomePage: %s", fdt.fas.lastHomePage))
+	}
+	if id <= 0 {
 		return 1
 	}
-	fdt.fs = fdt.fds.GetFlowSum(fdt.fas.sumID)
+	fdt.fs = fdt.fds.GetFlowSum(id)
 	if fdt.fs == nil {
-		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", fdt.fas.sumID))
+		panic(fmt.Errorf("flowKeyHeaderTable: flowSum with ID %d not found", id))
 	}
 	return 2
 }

@@ -9,29 +9,41 @@ import (
 )
 
 type FlowSum struct {
-	ID               int       `json:"id" storm:"id,increment"`
-	Key              string    `json:"key" storm:"unique"`
-	StartTime        time.Time `json:"start_time"`
-	EndTime          time.Time `json:"end_time"`
-	Action           string    `json:"action"`
-	SourceName       string    `json:"source_name"`
-	SourceNamespace  string    `json:"source_namespace"`
-	SourceLabels     string    `json:"source_labels"`
-	DestName         string    `json:"dest_name"`
-	DestNamespace    string    `json:"dest_namespace"`
-	DestLabels       string    `json:"dest_labels"`
-	Protocol         string    `json:"protocol"`
-	DestPort         int64     `json:"dest_port"`
-	SourceReports    int64     `json:"source_reports"`
-	DestReports      int64     `json:"dest_reports"`
-	SourcePacketsIn  uint64    `json:"source_packets_in"`
-	SourcePacketsOut uint64    `json:"source_packets_out"`
-	SourceBytesIn    uint64    `json:"source_bytes_in"`
-	SourceBytesOut   uint64    `json:"source_bytes_out"`
-	DestPacketsIn    uint64    `json:"dest_packets_in"`
-	DestPacketsOut   uint64    `json:"dest_packets_out"`
-	DestBytesIn      uint64    `json:"dest_bytes_in"`
-	DestBytesOut     uint64    `json:"dest_bytes_out"`
+	ID                    int       `json:"id" storm:"id,increment"`
+	Key                   string    `json:"key" storm:"unique"`
+	StartTime             time.Time `json:"start_time"`
+	EndTime               time.Time `json:"end_time"`
+	Action                string    `json:"action"`
+	SourceName            string    `json:"source_name"`
+	SourceNamespace       string    `json:"source_namespace"`
+	SourceLabels          string    `json:"source_labels"`
+	DestName              string    `json:"dest_name"`
+	DestNamespace         string    `json:"dest_namespace"`
+	DestLabels            string    `json:"dest_labels"`
+	Protocol              string    `json:"protocol"`
+	DestPort              int64     `json:"dest_port"`
+	SourceReports         int64     `json:"source_reports"`
+	DestReports           int64     `json:"dest_reports"`
+	SourcePacketsIn       uint64    `json:"source_packets_in"`
+	SourcePacketsOut      uint64    `json:"source_packets_out"`
+	SourceBytesIn         uint64    `json:"source_bytes_in"`
+	SourceBytesOut        uint64    `json:"source_bytes_out"`
+	DestPacketsIn         uint64    `json:"dest_packets_in"`
+	DestPacketsOut        uint64    `json:"dest_packets_out"`
+	DestBytesIn           uint64    `json:"dest_bytes_in"`
+	DestBytesOut          uint64    `json:"dest_bytes_out"`
+	SourcePacketsInRate   float64   `json:"source_packets_in_rate"`
+	SourcePacketsOutRate  float64   `json:"source_packets_out_rate"`
+	SourceBytesInRate     float64   `json:"source_bytes_in_rate"`
+	SourceBytesOutRate    float64   `json:"source_bytes_out_rate"`
+	DestPacketsInRate     float64   `json:"dest_packets_in_rate"`
+	DestPacketsOutRate    float64   `json:"dest_packets_out_rate"`
+	DestBytesInRate       float64   `json:"dest_bytes_in_rate"`
+	DestBytesOutRate      float64   `json:"dest_bytes_out_rate"`
+	SourceTotalPacketRate float64   `json:"source_total_packet_rate"`
+	SourceTotalByteRate   float64   `json:"source_total_byte_rate"`
+	DestTotalPacketRate   float64   `json:"dest_total_packet_rate"`
+	DestTotalByteRate     float64   `json:"dest_total_byte_rate"`
 }
 
 // [Flower] interface

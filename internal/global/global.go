@@ -8,6 +8,7 @@ import (
 
 type GlobalState struct {
 	Filter flowdata.FilterAttributes
+	Sort   flowdata.SortAttributes
 }
 
 var (
@@ -35,4 +36,14 @@ func SetFilter(fa flowdata.FilterAttributes) {
 	mu.Lock()
 	defer mu.Unlock()
 	gs.Filter = fa
+}
+
+func GetSort() flowdata.SortAttributes {
+	return GetState().Sort
+}
+
+func SetSort(sort flowdata.SortAttributes) {
+	mu.Lock()
+	defer mu.Unlock()
+	gs.Sort = sort
 }
