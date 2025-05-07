@@ -1,6 +1,7 @@
 # clyde
 
-[Project Calico](https://projectcalico.org) Observability Tools
+[Project Calico](https://projectcalico.org)
+([GitHub](https://github.com/projectcalico/calico)) Observability Tools
 
 This CLI/TUI application currently allows you to view & watch calico network
 flows in near real-time.
