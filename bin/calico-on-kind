@@ -98,7 +98,7 @@ function render_env_vars() {
     OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)manifests/tigera-operator.yaml
   fi
   if [[ "${HASHREL}" != "true" && "${OPYAML}" == "" ]] && version_greater_equal "${LATEST_VERSION}" "${VERSION}"; then
-    OPYAML="https://raw.githubusercontent.com/projectcalico/calico/refs/tags/${VERSION}.0/manifests/tigera-operator.yaml"
+    OPYAML="https://raw.githubusercontent.com/projectcalico/calico/refs/heads/release-${VERSION}/manifests/tigera-operator.yaml"
   fi
   OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
 }
