@@ -56,5 +56,5 @@ VERSION=v3.30 DP=BPF DEMOAPP=true ./bin/calico-on-kind new
 ```
 
 > **_NOTE:_** ARM based machines may have issues to work through with the DEMOAPP,
-> since the GCP demo app does not arm based images published at the time of
+> since the GCP demo app does not have arm based images published at the time of
 > this writing.
