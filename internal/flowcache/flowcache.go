@@ -49,7 +49,7 @@ func (fc *FlowCache) cacheSortedFlowSums(cacheKey string, fieldName string, asce
 		fsc := make([]*flowdata.FlowSum, len(flowSums))
 		copy(fsc, flowSums)
 		util.SortSlice(fsc, fieldName, ascending)
-		fc.flowSumCache.SetTTL(cacheKey, fsc, time.Second*5)
+		fc.flowSumCache.SetTTL(cacheKey, fsc, time.Second*2)
 		return fsc
 	}
 	return []*flowdata.FlowSum{}

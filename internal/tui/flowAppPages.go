@@ -24,6 +24,16 @@ func (fa *FlowApp) viewSummary() tview.Primitive {
 		return event
 	})
 
+	tableData.SetDrawFunc(func(screen tcell.Screen, x int, y int, width int, height int) (int, int, int, int) {
+		if tableData.GetRowCount() > 1 {
+			row, _ := tableData.GetSelection()
+			fa.fas.setSum(tableData.GetCell(row, 0).GetReference().(int), row)
+		} else {
+			fa.fas.setSum(0, 0)
+		}
+		return tableData.GetInnerRect()
+	})
+
 	tableData.SetSelectionChangedFunc(func(row, column int) {
 		fa.fas.setSum(tableData.GetCell(row, 0).GetReference().(int), row)
 	})
@@ -61,6 +71,16 @@ func (fa *FlowApp) viewSummaryRates() tview.Primitive {
 			}
 		}
 		return event
+	})
+
+	tableData.SetDrawFunc(func(screen tcell.Screen, x int, y int, width int, height int) (int, int, int, int) {
+		if tableData.GetRowCount() > 1 {
+			row, _ := tableData.GetSelection()
+			fa.fas.setRate(tableData.GetCell(row, 0).GetReference().(int), row)
+		} else {
+			fa.fas.setRate(0, 0)
+		}
+		return tableData.GetInnerRect()
 	})
 
 	tableData.SetSelectionChangedFunc(func(row, column int) {

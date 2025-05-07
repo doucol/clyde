@@ -14,9 +14,13 @@ import (
 )
 
 func (fa *FlowApp) filterChange(filter flowdata.FilterAttributes) {
+	f := global.GetFilter()
+	if f == (filter) {
+		return
+	}
 	global.SetFilter(filter)
 	fa.fas.reset()
-	fa.pages.SwitchToPage(pageSummaryTotalsName)
+	fa.pages.SwitchToPage(fa.fas.lastHomePage)
 	logrus.Debugf("Filter: %+v", filter)
 }
 
@@ -131,6 +135,19 @@ func (fa *FlowApp) filterModal() {
 
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
+			fa.pages.RemovePage(modalName)
+			return nil
+		}
+		if event.Key() == tcell.KeyEnter {
+			for i := 0; i < form.GetButtonCount(); i++ {
+				if form.GetButton(i).HasFocus() {
+					return event
+				}
+			}
+			if form.GetFormItemByLabel("Action:").HasFocus() {
+				return event
+			}
+			fa.filterChange(filter)
 			fa.pages.RemovePage(modalName)
 			return nil
 		}

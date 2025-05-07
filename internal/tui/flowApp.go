@@ -49,12 +49,14 @@ func (fa *FlowApp) updateSort(event *tcell.EventKey, fieldName string, defaultOr
 				asc = !sa.SumTotalsAscending
 			}
 			global.SetSort(flowdata.SortAttributes{SumTotalsFieldName: fieldName, SumTotalsAscending: asc})
+			fa.fas.setSum(0, 0)
 			return nil
 		} else if pageName == pageSummaryRatesName {
 			if sa.SumRatesFieldName == fieldName {
 				asc = !sa.SumRatesAscending
 			}
 			global.SetSort(flowdata.SortAttributes{SumRatesFieldName: fieldName, SumRatesAscending: asc})
+			fa.fas.setRate(0, 0)
 			return nil
 		}
 	}
