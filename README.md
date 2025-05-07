@@ -5,19 +5,26 @@
 This CLI/TUI application currently allows you to view & watch calico network
 flows in near real-time.
 
-The first page you will see is a simple summary grouped by SRC namespace & name,
-DST namespace & name, and protocol:port.
+The first page you will see is a simple summary totals grouped by SRC namespace
+and name, DST namespace & name, and protocol:port.
+
+When on the "home" page (Calico Flow Summary Totals), you can press `r` to
+see the flow summary rates (packets/bytes per second). Press `t` to go back
+to the home summary totals page.
 
 You can move through the rows with standard vim oriented keystrokes
 (up: `k`, down: `j`, top: `g`, bottom: `G`, and arrow / page keys)
 
+Sorting: when in the summary totals page you can sort by SRC namespace & name by
+pressing the `n` key. Press it again to reverse the sort. When in the summary
+rates page you can do the same but you also have the ability to sort by rates.
+`p` for source packets/sec and `P` for destination packets/sec. You can do the same
+for the bytes/sec using `b` and `B` respectively. Again, pressing the same key
+again will reverse the sort.
+
 Dive into details by hitting \<enter\> on rows and the \<escape\> to back out.
 
 To enable filtering, use the `/` key to show the filter attributes.
-
-Finally, when on the "home" page (Calico Flow Summary), you can press `r` to
-see the flow summary rates (packets/bytes per second). Press `s` to go back
-to the home summary page.
 
 ## Dependencies
 
