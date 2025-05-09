@@ -104,7 +104,7 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 				page, _ := fa.pages.GetFrontPage()
 				return fa.updateSort(event, "Key", true, page)
 			case '/':
-				if !fa.pages.HasPage(modalName) {
+				if !fa.pages.HasPage(modalFilterDialogName) {
 					fa.filterModal()
 					return nil
 				}

@@ -27,3 +27,5 @@ go.work.sum
 clyde
 tmp.log
 .vscode
+# Added by goreleaser init:
+dist/

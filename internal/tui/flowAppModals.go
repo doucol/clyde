@@ -24,18 +24,17 @@ func (fa *FlowApp) filterChange(filter flowdata.FilterAttributes) {
 	logrus.Debugf("Filter: %+v", filter)
 }
 
-const modalName = "modalDialog"
+const modalFilterDialogName = "modalFilterDialog"
 
 func (fa *FlowApp) filterModal() {
+	const actionLabel = "Action:"
+	const portLabel = "Port:"
+	const namespaceLabel = "Namespace:"
+	const nameLabel = "Name:"
+	const labelLabel = "Label:"
+	const dateFromLabel = "Date From:"
+	const dateToLabel = "Date To:"
 	filter := global.GetFilter()
-
-	actionLabel := "Action:"
-	portLabel := "Port:"
-	namespaceLabel := "Namespace:"
-	nameLabel := "Name:"
-	labelLabel := "Label:"
-	dateFromLabel := "Date From:"
-	dateToLabel := "Date To:"
 
 	actionOptions := []string{"All", "Deny", "Allow"}
 
@@ -123,32 +122,32 @@ func (fa *FlowApp) filterModal() {
 	form.AddFormItem(dateToInputField)
 	form.AddButton("Save", func() {
 		fa.filterChange(filter)
-		fa.pages.RemovePage(modalName)
+		fa.pages.RemovePage(modalFilterDialogName)
 	})
 	form.AddButton("Cancel", func() {
-		fa.pages.RemovePage(modalName)
+		fa.pages.RemovePage(modalFilterDialogName)
 	})
 	form.AddButton("Clear", func() {
 		fa.filterChange(flowdata.FilterAttributes{})
-		fa.pages.RemovePage(modalName)
+		fa.pages.RemovePage(modalFilterDialogName)
 	})
 
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
-			fa.pages.RemovePage(modalName)
+			fa.pages.RemovePage(modalFilterDialogName)
 			return nil
 		}
 		if event.Key() == tcell.KeyEnter {
+			if actionDropDown.HasFocus() {
+				return event
+			}
 			for i := 0; i < form.GetButtonCount(); i++ {
 				if form.GetButton(i).HasFocus() {
 					return event
 				}
 			}
-			if form.GetFormItemByLabel("Action:").HasFocus() {
-				return event
-			}
 			fa.filterChange(filter)
-			fa.pages.RemovePage(modalName)
+			fa.pages.RemovePage(modalFilterDialogName)
 			return nil
 		}
 		return event
@@ -176,7 +175,7 @@ func (fa *FlowApp) filterModal() {
 	modal.AddItem(modalFlex, 0, 1, true)
 
 	applyTheme(form, actionDropDown, portInputField, namespaceInputField, nameInputField, labelInputField, dateFromInputField, dateToInputField)
-	fa.pages.AddPage(modalName, modal, true, true)
+	fa.pages.AddPage(modalFilterDialogName, modal, true, true)
 }
 
 var dateRegex = regexp.MustCompile(`^\d{0,4}?-\d{0,2}?-\d{0,2}?T\d{0,2}?:\d{0,2}?:\d{0,2}Z$`)
