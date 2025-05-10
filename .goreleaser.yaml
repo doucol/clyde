@@ -13,17 +13,20 @@ before:
     # You may remove this if you don't use go modules.
     - go mod tidy
     # you may remove this if you don't need go generate
-    - go generate ./...
+    #- go generate ./...
 
 builds:
   - env:
       - CGO_ENABLED=0
+      - SRC={{ trimprefix .GitURL "git@" }}
+      - SRC={{ trimsuffix .Env.SRC ".git" }}
+      - SRC={{ replace .Env.SRC ":" "/" }}
     goos:
       - linux
       - windows
       - darwin
     ldflags:
-      - -s -w "-X {{.env.SRC}}/cmd.date={{.Date}} -X {{.env.SRC}}/cmd.revision={{.Commit}} -X {{.env.SRC}}/cmd.version={{.Version}}"
+      - "-s -w -X {{.Env.SRC}}/cmd.date={{.Date}} -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}} -X {{.Env.SRC}}/cmd.version=v{{.Version}}"
 
 archives:
   - formats: [tar.gz]

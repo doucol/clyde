@@ -9,7 +9,7 @@ endif
 APP := clyde
 OUT ?= bin/$(APP)
 SRC := github.com/doucol/$(APP)
-VER ?= v0.2.2
+VER ?= v0.1-dev-$(REV)
 
 default: help
 
@@ -21,6 +21,9 @@ test: ## Run tests
 
 build: ## Build
 	@CGO_ENABLED=0 go build -ldflags "-X ${SRC}/cmd.date=${DATE} -X ${SRC}/cmd.revision=${REV} -X ${SRC}/cmd.version=${VER} -w -s" -a -o ${OUT} main.go
+
+snapshot: ## GoReleaser snapshot
+	@goreleaser release --clean --snapshot
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":[^:]*?## "}; {printf "\033[38;5;69m%-30s\033[38;5;38m %s\033[0m\n", $$1, $$2}'
