@@ -9,7 +9,7 @@ endif
 APP := clyde
 OUT ?= bin/$(APP)
 SRC := github.com/doucol/$(APP)
-VER ?= v0.1-dev-$(REV)
+VER ?= v0.0.1-dev-$(REV)
 
 default: help
 
@@ -25,5 +25,9 @@ build: ## Build
 snapshot: ## GoReleaser snapshot
 	@goreleaser release --clean --snapshot
 
+devrel: ## dev release v0.0.1-dev-<rev>
+	@git tag -f -a $(VER) -m "Release $(VER)"
+	@git push origin tag $(VER)
+	
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":[^:]*?## "}; {printf "\033[38;5;69m%-30s\033[38;5;38m %s\033[0m\n", $$1, $$2}'
