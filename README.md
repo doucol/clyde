@@ -1,4 +1,4 @@
-# clyde
+# Clyde
 
 [Project Calico](https://projectcalico.org)
 ([GitHub](https://github.com/projectcalico/calico)) Observability Tools
@@ -27,7 +27,7 @@ Dive into details by hitting \<enter\> on rows and the \<escape\> to back out.
 
 To enable filtering, use the `/` key to show the filter attributes.
 
-## Quick Start
+## Install
 
 ### Homebrew (Mac / Linux)
 
@@ -41,6 +41,14 @@ Or
 brew tap doucol/tap
 brew install clyde
 ```
+
+### Manual
+
+Released binaries are available through [GitHub releases](https://github.com/doucol/clyde/releases).
+You can choose the release and distribution you need, download the tar.gz/zip file
+and extract the `clyde` binary.
+
+> NOTE: while Windows binaries are available, they have not yet been tested!
 
 ### Build from source
 
@@ -57,8 +65,12 @@ bin/clyde --help
 bin/clyde
 ```
 
+### Additionally
+
 You can also use the `bin/calico-on-kind` script to quickly create a
-[Kind](https://kind.sigs.k8s.io/) based Kubernetes cluster with Calico OSS installed
+[Kind](https://kind.sigs.k8s.io/) based Kubernetes cluster with Calico OSS installed.
+
+> NOTE: this script does require a newer version of `kubectl`.
 
 ```bash
 # To see help
