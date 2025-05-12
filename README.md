@@ -27,13 +27,27 @@ Dive into details by hitting \<enter\> on rows and the \<escape\> to back out.
 
 To enable filtering, use the `/` key to show the filter attributes.
 
-## Dependencies
-
-make, go 1.23+, and a Calico OSS 3.30+ cluster
-
 ## Quick Start
 
+### Homebrew (Mac / Linux)
+
 ```bash
+brew install doucol/tap/clyde
+```
+
+Or
+
+```bash
+brew tap doucol/tap
+brew install clyde
+```
+
+### Build from source
+
+You will need `make` and `go 1.23+`
+
+```bash
+# clone this repository first and then ...
 make build
 
 # To see the help
