@@ -9,12 +9,14 @@ before:
   hooks:
     - go mod tidy
 
+env:
+  - SRC={{ trimprefix .GitURL "git@" }}
+  - SRC={{ trimsuffix .Env.SRC ".git" }}
+  - SRC={{ replace .Env.SRC ":" "/" }}
+
 builds:
   - env:
       - CGO_ENABLED=0
-      - SRC={{ trimprefix .GitURL "git@" }}
-      - SRC={{ trimsuffix .Env.SRC ".git" }}
-      - SRC={{ replace .Env.SRC ":" "/" }}
     goos:
       - linux
       - windows
