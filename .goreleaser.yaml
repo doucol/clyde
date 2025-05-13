@@ -15,20 +15,14 @@ builds:
       - SRC={{ trimprefix .GitURL "git@" }}
       - SRC={{ trimsuffix .Env.SRC ".git" }}
       - SRC={{ replace .Env.SRC ":" "/" }}
-      - LDFLAG_DATE="-X {{ .Env.SRC -}}/cmd.date={{- .Date }}"
-      - LDFLAG_REV="-X {{ .Env.SRC -}}/cmd.revision={{- .ShortCommit }}"
-      - LDFLAG_VER="-X {{ .Env.SRC -}}/cmd.version={{- .Version }}"
     goos:
       - linux
       - windows
       - darwin
     ldflags:
-      - -s -w
-      - "{{ .Env.LDFLAG_DATE }}"
-      - "{{ .Env.LDFLAG_REV }}"
-      - "{{ .Env.LDFLAG_VER }}"
+      - '"-s -w -X {{.Env.SRC}}/cmd.date={{.Date}} -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}} -X {{.Env.SRC}}/cmd.version={{.Version}}"'
     hooks:
-      pre: echo "{{ .Env.LDFLAG_DATE }} {{ .Env.LDFLAG_REV }} {{ .Env.LDFLAG_VER }}"
+      pre: echo '"-s -w -X {{.Env.SRC}}/cmd.date={{.Date}} -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}} -X {{.Env.SRC}}/cmd.version={{.Version}}"'
 
 archives:
   - formats: [tar.gz]
