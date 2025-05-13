@@ -10,9 +10,10 @@ before:
     - go mod tidy
 
 env:
-  - SRC={{ trimprefix .GitURL "git@" }}
-  - SRC={{ trimsuffix .Env.SRC ".git" }}
-  - SRC={{ replace .Env.SRC ":" "/" }}
+  - SRC=github.com/doucol/clyde
+  # - SRC={{ trimprefix .GitURL "git@" }}
+  # - SRC={{ trimsuffix .Env.SRC ".git" }}
+  # - SRC={{ replace .Env.SRC ":" "/" }}
 
 builds:
   - env:
