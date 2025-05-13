@@ -10,7 +10,7 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
       - "v[0-9]+.[0-9]+-dev-[0-9a-zA-Z]+"
       - "v[0-9]+.[0-9]+.[0-9]+-dev-[0-9a-zA-Z]+"
-      
+
 permissions:
   contents: write
   packages: write
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.3'
+          go-version: "1.24"
       # More assembly might be required: Docker logins, GPG, etc.
       # It all depends on your needs.
       - name: Run GoReleaser

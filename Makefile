@@ -6,10 +6,12 @@ else
   DATE := $(shell date -u -d @${SEC} +"%Y-%m-%dT%H:%M:%SZ")
 endif
 
+NEXT ?= v0.3
+
 APP := clyde
 OUT ?= bin/$(APP)
 SRC := github.com/doucol/$(APP)
-VER ?= v0.0.1-dev-$(REV)
+VER ?= $(NEXT)-dev-$(REV)
 
 default: help
 
