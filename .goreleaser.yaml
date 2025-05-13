@@ -11,9 +11,6 @@ before:
 
 env:
   - SRC=github.com/doucol/clyde
-  # - SRC={{ trimprefix .GitURL "git@" }}
-  # - SRC={{ trimsuffix .Env.SRC ".git" }}
-  # - SRC={{ replace .Env.SRC ":" "/" }}
 
 builds:
   - env:
@@ -23,9 +20,10 @@ builds:
       - windows
       - darwin
     ldflags:
-      - -s -w -X {{.Env.SRC}}/cmd.date={{.Date}} -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}} -X {{.Env.SRC}}/cmd.version={{.Version}}
-    hooks:
-      pre: echo '"-s -w -X {{.Env.SRC}}/cmd.date={{.Date}} -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}} -X {{.Env.SRC}}/cmd.version={{.Version}}"'
+      - -s -w
+      - -X {{.Env.SRC}}/cmd.date={{.Date}}
+      - -X {{.Env.SRC}}/cmd.revision={{.ShortCommit}}
+      - -X {{.Env.SRC}}/cmd.version=v{{.Version}}
 
 archives:
   - formats: [tar.gz]
