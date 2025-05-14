@@ -55,7 +55,7 @@ and extract the `clyde` binary.
 You will need `make` and `go 1.23+`
 
 ```bash
-# clone this repository first and then ...
+# fork & clone this repository first and then ...
 make build
 
 # To see the help
