@@ -70,7 +70,7 @@ bin/clyde
 You can also use the `bin/calico-on-kind` script to quickly create a
 [Kind](https://kind.sigs.k8s.io/) based Kubernetes cluster with Calico OSS installed.
 
-> NOTE: this script does require a newer version of `kubectl`.
+> NOTE: this script does require a newer version of `kubectl`. Tested with `v1.33`
 
 ```bash
 # To see help
