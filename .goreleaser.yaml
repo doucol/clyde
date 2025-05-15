@@ -74,7 +74,7 @@ changelog:
 # Source archive configuration
 source:
   enabled: true
-  name_template: "{{.ProjectName}}-{{.Version}}-source"
+  name_template: "{{.ProjectName}}_{{.Version}}_source"
   format: "tar.gz"
 
 release:
@@ -90,8 +90,8 @@ release:
 
     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
 
-# Don't publish automatically (set to false if you want to publish right away)
-# You can also use the --skip-publish flag when running goreleaser
+# Social media announcment - no, not at the moment
+# https://goreleaser.com/customization/announce/
 announce:
   skip: true
 
@@ -109,7 +109,7 @@ brews:
       bin.install "{{.ProjectName}}"
 
     test: |
-      assert_match "{{.ProjectName}}", shell_output("#{bin}/{{.ProjectName}} help")
+      assert_match "v{{.Version}}", shell_output("#{bin}/{{.ProjectName}} version")
 
     repository:
       owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
