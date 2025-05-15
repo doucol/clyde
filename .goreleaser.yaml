@@ -1,16 +1,24 @@
-# The lines below are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/need to use them.
+# This is a GoReleaser configuration file
+# For more details, visit: https://goreleaser.com
+
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
 version: 2
 
+project_name: clyde
+
+env:
+  - SRC=github.com/{{.Env.GITHUB_REPOSITORY_OWNER}}/{{.ProjectName}}
+
+# Snapshot configuration for dev builds
+snapshot:
+  version_template: "{{incpatch .Version}}-next"
+
 before:
   hooks:
     - go mod tidy
-
-env:
-  - SRC=github.com/doucol/clyde
+    - echo "{{.Env.SRC}} -- {{.Version}}"
 
 builds:
   - env:
@@ -19,6 +27,12 @@ builds:
       - linux
       - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: "{{.ProjectName}}"
+    flags:
+      - -trimpath
     ldflags:
       - -s -w
       - -X {{.Env.SRC}}/cmd.date={{.Date}}
@@ -39,6 +53,13 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "{{.ProjectName}}_{{.Version}}_checksums.txt"
+  algorithm: sha256
 
 changelog:
   sort: asc
@@ -46,10 +67,60 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+# Source archive configuration
+source:
+  enabled: true
+  name_template: "{{.ProjectName}}-{{.Version}}-source"
+  format: "tar.gz"
 
 release:
+  github:
+    owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
+    name: "{{.ProjectName}}"
+  prerelease: auto
+  draft: false
+  name_template: "{{.ProjectName}} v{{.Version}}"
   footer: >-
 
     ---
 
     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+
+# Don't publish automatically (set to false if you want to publish right away)
+# You can also use the --skip-publish flag when running goreleaser
+announce:
+  skip: true
+
+# Homebrew tap configuration
+brews:
+  - name: "{{.ProjectName}}"
+    homepage: "https://{{.Env.SRC}}/"
+    description: "Terminal-based UI for monitoring Project Calico network flows in real-time"
+    license: "Apache-2.0"
+    skip_upload: auto
+    directory: Formula
+    download_strategy: CurlDownloadStrategy
+
+    install: |
+      bin.install "{{.ProjectName}}"
+
+    test: |
+      assert_match "{{.ProjectName}}", shell_output("#{bin}/{{.ProjectName}} help")
+
+    repository:
+      owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
+      name: homebrew-tap
+      branch: main
+      token: "{{.Env.GITHUB_TOKEN}}"
+
+    # Commit author
+    commit_author:
+      name: GoReleaser Bot
+      email: bot@goreleaser.com
+
+    # Custom commit message
+    commit_msg_template: "Brew formula update for {{.ProjectName}} version {{.Version}}"
