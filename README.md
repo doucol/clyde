@@ -3,7 +3,7 @@
 [Project Calico](https://projectcalico.org)
 ([GitHub](https://github.com/projectcalico/calico)) Observability Tools
 
-This CLI/TUI application currently allows you to view & watch calico network
+This CLI/TUI application currently allows you to watch & inspect calico network
 flows in near real-time.
 
 The first page you will see is a simple summary totals grouped by SRC namespace
