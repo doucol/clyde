@@ -12,6 +12,7 @@ OSNAME=$(uname -s)
 DEFAULT_DP=Nftables
 DEFAULT_ENCAP=VXLANCrossSubnet
 DEFAULT_K8SVER=v1.31.6
+DEFAULT_VERSION=v3.30
 if [[ "${OSNAME}" == "Darwin" ]]; then
   DEFAULT_DP=Iptables
   DEFAULT_ENCAP=IPIP
@@ -19,7 +20,7 @@ fi
 
 # Establish env vars
 NAME=${NAME:-calico}
-VERSION=${VERSION:-v3.30}
+VERSION=${VERSION:-${DEFAULT_VERSION}}
 HASHREL=${HASHREL:-}
 DP=${DP:-$DEFAULT_DP}
 PODNET=${PODNET:-10.244.0.0/16}
@@ -47,7 +48,7 @@ function print_help() {
   echo ""
   echo "Environment variables:"
   echo "  NAME     - The name of the kind cluster (default: calico)"
-  echo "  VERSION  - The version of Calico to install - valid values: latest|master|<semver> (default: ${VERSION})"
+  echo "  VERSION  - The version of Calico to install - valid values: latest|master|<semver> (default: ${DEFAULT_VERSION})"
   echo "             ('latest' will install the latest official release of Calico according to git tags)"
   echo "  HASHREL  - Use a 'hash release' (managed nightly build) of Calico to install - valid values: true|false"
   echo "             (Default depends on VERSION - default: ${HASHREL}. Not applicable for VERSION=latest)"
@@ -64,22 +65,29 @@ function print_help() {
   echo "             (see kind images for k8s versions here: https://hub.docker.com/r/kindest/node/tags?ordering=name"
   echo ""
   echo "Dependencies:"
-  echo "  kind (hence docker), kubectl, jq, curl, sort, grep, head, xargs"
+  echo "  kind (hence docker), kubectl, jq, curl, sort, grep, tail, xargs"
+}
+
+function error_exit() {
+  echo "${1}"
+  echo ""
+  print_help
+  exit 1
 }
 
 function render_env_vars() {
-  if [[ "${VERSION}" != "latest" && "${VERSION}" != "master" ]]; then
-    if ! version_greater "${VERSION}" "v0.1"; then
-      echo "ERROR: Invalid VERSION value: ${VERSION}"
-      print_help
-      exit 1
-    fi
-  fi
+  LATEST_VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 | xargs)
 
-  LATEST_VERSION=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | xargs)
+  if [[ "${OPYAML}" != "" ]]; then
+    VERSION=undefined
+  fi
+  if [[ ! "${VERSION}" =~ undefined|latest|master|^v[0-9]+\.[0-9]+$ ]]; then
+    error_exit "ERROR: Invalid VERSION value: ${VERSION} - use a major/minor format 'vX.Y'"
+  fi
   if [[ "${VERSION}" == "latest" ]]; then
     VERSION=${LATEST_VERSION}
   fi
+
   if [[ "${HASHREL}" == "" ]]; then
     if [[ "${VERSION}" == "master" ]] || version_greater "${VERSION}" "${LATEST_VERSION}"; then
       HASHREL=true
@@ -94,13 +102,28 @@ function render_env_vars() {
       WHISKER=false
     fi
   fi
-  if [[ "${HASHREL}" == "true" && "${OPYAML}" == "" ]]; then
-    OPYAML=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)manifests/tigera-operator.yaml
+  if [[ "${OPYAML}" == "" ]]; then
+    if [[ "${HASHREL}" == "true" ]]; then
+      HASHREL_URL=$(curl -s https://latest-os.docs.eng.tigera.net/"${VERSION}".txt | xargs)
+      if [[ "${HASHREL_URL}" == https* ]]; then
+        OPYAML="${HASHREL_URL}manifests/tigera-operator.yaml"
+      else
+        error_exit "ERROR: Unable to determine the hash release URL for version ${VERSION}."
+      fi
+    elif [[ "${LATEST_VERSION}" == "${VERSION}" ]]; then
+      OPYAML="https://raw.githubusercontent.com/projectcalico/calico/refs/tags/${VERSION}/manifests/tigera-operator.yaml"
+    elif [[ "${VERSION}" == "master" ]]; then
+      OPYAML="https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"
+    elif version_greater_equal "${LATEST_VERSION}" "${VERSION}"; then
+      LATEST_PATCH=$(curl -s "https://api.github.com/repos/projectcalico/calico/tags" | jq -r '.[].name' | grep -E "^${VERSION}.[0-9]+$" | sort -V | tail -1 | xargs || true)
+      OPYAML="https://raw.githubusercontent.com/projectcalico/calico/refs/tags/${LATEST_PATCH}/manifests/tigera-operator.yaml"
+    else
+      error_exit "ERROR: Invalid VERSION value: ${VERSION} - unable to determine the appropriate OPYAML to use."
+    fi
   fi
-  if [[ "${HASHREL}" != "true" && "${OPYAML}" == "" ]] && version_greater_equal "${LATEST_VERSION}" "${VERSION}"; then
-    OPYAML="https://raw.githubusercontent.com/projectcalico/calico/refs/heads/release-${VERSION}/manifests/tigera-operator.yaml"
+  if [[ $(curl -L -s -o /dev/null -w "%{http_code}" "${OPYAML}") != 200 ]]; then
+    error_exit "ERROR: Unable to access the operator yaml at '${OPYAML}' - please check the env vars and try again."
   fi
-  OPYAML=${OPYAML:-"https://raw.githubusercontent.com/projectcalico/calico/${VERSION}/manifests/tigera-operator.yaml"}
 }
 
 function confirm_state() {
@@ -321,7 +344,7 @@ EOF
 function create_kind_cluster() {
   WORKER_NODES=$(worker_nodes)
   if ${KIND} delete cluster 2>&1 >/dev/null | grep "control-plane"; then
-    sleep 5
+    sleep 8
   fi
   ${KIND} create cluster --image="kindest/node:${K8SVER}" --config - <<EOF
 kind: Cluster
