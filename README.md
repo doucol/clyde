@@ -3,6 +3,13 @@
 [Project Calico](https://projectcalico.org)
 ([GitHub](https://github.com/projectcalico/calico)) Observability Tools
 
+> NOTE: this app requires a Calico OSS 3.30+ cluster with [Goldmane/Whisker
+> enabled](https://docs.tigera.io/calico/latest/observability/enable-whisker).
+> This terminal based UI is supplemental to
+> [Whisker](https://docs.tigera.io/calico/latest/observability/enable-whisker)
+> as it aggregates and calculates rates for flows between source (SRC) and
+> destination (DST).
+
 This CLI/TUI application currently allows you to watch & inspect calico network
 flows in near real-time.
 
