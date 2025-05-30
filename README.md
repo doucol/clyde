@@ -5,8 +5,8 @@
 
 > NOTE: this app requires a Calico OSS 3.30+ cluster with [Goldmane/Whisker
 > enabled](https://docs.tigera.io/calico/latest/observability/enable-whisker).
-> This terminal based UI is supplemental to
-> [Whisker](https://docs.tigera.io/calico/latest/observability/enable-whisker)
+> This terminal based UI is supplemental to the [Whisker UI]
+> (https://docs.tigera.io/calico/latest/observability/view-flow-logs#calico-whisker)
 > as it aggregates and calculates rates for flows between source (SRC) and
 > destination (DST).
 
