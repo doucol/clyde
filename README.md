@@ -3,7 +3,7 @@
 [Project Calico](https://projectcalico.org)
 ([GitHub](https://github.com/projectcalico/calico)) Observability Tools
 
-> NOTE: this app requires a Calico OSS 3.30+ cluster with [Goldmane/Whisker
+> NOTE: this app requires a Calico OSS 3.30+ cluster with [Whisker
 > enabled](https://docs.tigera.io/calico/latest/observability/enable-whisker).
 > This terminal based UI is supplemental to the [Whisker
 > UI](https://docs.tigera.io/calico/latest/observability/view-flow-logs#calico-whisker)
