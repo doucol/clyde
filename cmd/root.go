@@ -1,3 +1,4 @@
+// Package cmd provides the root command for the Clyde CLI application.
 package cmd
 
 import (
@@ -27,7 +28,8 @@ var rootCmd = &cobra.Command{
 	Short: "Project Calico utilities",
 	Long:  "clyde\nA collection of Project Calico utilities",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return whisker.WatchFlows(cmd.Context())
+		cfg := whisker.DefaultConfig()
+		return whisker.WatchFlows(cmd.Context(), cfg, nil)
 	},
 }
 

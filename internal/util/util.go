@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-func GetPodAndEnvVarByContainerName(ctx context.Context, clientset *kubernetes.Clientset, namespace, containerName, envVarName string) (string, string, error) {
+func GetPodAndEnvVarByContainerName(ctx context.Context, clientset kubernetes.Interface, namespace, containerName, envVarName string) (string, string, error) {
 	podName, envVals, err := GetPodAndEnvVarsByContainerName(ctx, clientset, namespace, containerName, envVarName)
 	if err != nil {
 		return "", "", err
@@ -26,7 +26,7 @@ func GetPodAndEnvVarByContainerName(ctx context.Context, clientset *kubernetes.C
 	return "", "", fmt.Errorf("pod or env var not found")
 }
 
-func GetPodAndEnvVarsByContainerName(ctx context.Context, clientset *kubernetes.Clientset, namespace, containerName string, envVarNames ...string) (string, map[string]string, error) {
+func GetPodAndEnvVarsByContainerName(ctx context.Context, clientset kubernetes.Interface, namespace, containerName string, envVarNames ...string) (string, map[string]string, error) {
 	envVals := map[string]string{}
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {

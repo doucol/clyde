@@ -18,7 +18,8 @@ default: help
 
 .PHONY: clean
 clean: ## Clean bin & test cache
-	@rm $(OUT) && go clean --testcache
+	@rm $(OUT) 2>/dev/null || true
+	@go clean --testcache
 
 .PHONY: test
 test: ## Run tests

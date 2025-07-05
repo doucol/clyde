@@ -1,18 +1,23 @@
 package util
 
-import "strings"
+import (
+	"maps"
+	"slices"
+	"strings"
+)
 
 func GetMapKeys[K comparable, V any](m map[K]V) []K {
-	i := 0
-	keys := make([]K, len(m))
-	for k := range m {
-		keys[i] = k
-		i++
-	}
-	return keys
+	return slices.Collect(maps.Keys(m))
+}
+
+func GetMapValues[K comparable, V any](m map[K]V) []V {
+	return slices.Collect(maps.Values(m))
 }
 
 func JoinMapKeys(m map[string]any, sep string) string {
-	keys := GetMapKeys(m)
-	return strings.Join(keys, sep)
+	return strings.Join(GetMapKeys(m), sep)
+}
+
+func JoinMapValues(m map[any]string, sep string) string {
+	return strings.Join(GetMapValues(m), sep)
 }

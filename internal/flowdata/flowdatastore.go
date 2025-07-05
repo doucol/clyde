@@ -17,7 +17,7 @@ import (
 type FlowDataStore struct {
 	db     *storm.DB
 	inFlow chan Flower
-	wg     sync.WaitGroup
+	wg     *sync.WaitGroup
 	stop   chan struct{}
 }
 
@@ -54,8 +54,11 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	ic := make(chan Flower, 1000)
-	return &FlowDataStore{db: db, inFlow: ic, wg: sync.WaitGroup{}, stop: make(chan struct{})}, nil
+	return &FlowDataStore{
+		db:     db,
+		stop:   make(chan struct{}),
+		inFlow: make(chan Flower, 1000),
+	}, nil
 }
 
 func Clear() error {
@@ -67,6 +70,7 @@ func Clear() error {
 }
 
 func (fds *FlowDataStore) Run(recoverFunc func()) {
+	fds.wg = &sync.WaitGroup{}
 	fds.wg.Add(1)
 	go func() {
 		defer fds.wg.Done()
@@ -75,6 +79,7 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 		}
 		for f := range fds.inFlow {
 			if f == nil {
+				logrus.Debug("stop signal received, exiting inFlow goroutine")
 				return
 			}
 			switch fl := f.(type) {
@@ -115,23 +120,28 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 			case <-tock:
 				fds.calcRates(epoch, window)
 			case <-fds.stop:
+				logrus.Debug("stop signal received, exiting rate calculation")
 				return
 			}
 		}
 	}()
-	return
 }
 
 func (fds *FlowDataStore) Close() {
-	// send stop signals
-	fds.stop <- struct{}{}
-	fds.inFlow <- nil
-	// wait for goroutines to finish
-	fds.wg.Wait()
+	logrus.Debug("closing flow data store")
+	if fds.wg != nil {
+		// send stop signals
+		fds.stop <- struct{}{}
+		fds.inFlow <- nil
+		// wait for goroutines to finish
+		fds.wg.Wait()
+	}
 	// and close everything
 	close(fds.stop)
 	close(fds.inFlow)
-	runtime.HandleError(fds.db.Close())
+	if err := fds.db.Close(); err != nil {
+		logrus.WithError(err).Error("error closing flow data store")
+	}
 }
 
 func (fds *FlowDataStore) addFlow(fd *FlowData) (*FlowSum, bool, error) {
@@ -178,25 +188,35 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) {
 }
 
 func (fds *FlowDataStore) calcRates(epoch time.Time, window time.Duration) {
-	secondsSinceEpoch := time.Now().UTC().Sub(epoch).Seconds()
+	const year = time.Hour * 24 * 365
+	now := time.Now().UTC()
+	secondsSinceEpoch := now.Sub(epoch).Seconds()
 	windowSeconds := window.Seconds()
-	rateSeconds := min(secondsSinceEpoch, windowSeconds)
-	durationToSubtract := time.Duration(rateSeconds * float64(time.Second) * -1)
+	minSeconds := min(secondsSinceEpoch, windowSeconds)
+	durationToSubtract := time.Duration(minSeconds * float64(time.Second) * -1)
+	filter := FilterAttributes{DateFrom: now.Add(durationToSubtract)}
+	startTime, endTime := now.Add(year), now.Add(-year)
 
 	fss := fds.GetFlowSums(FilterAttributes{})
+
 	for _, fs := range fss {
 		var srcPacketsInSum, srcPacketsOutSum, srcBytesInSum, srcBytesOutSum uint64
 		var dstPacketsInSum, dstPacketsOutSum, dstBytesInSum, dstBytesOutSum uint64
-		fa := FilterAttributes{DateFrom: time.Now().UTC().Add(durationToSubtract)}
-		for _, fd := range fds.GetFlowsBySumID(fs.ID, fa) {
-			reporter := strings.ToLower(fd.Reporter)
-			switch reporter {
+		srcStartTime, dstStartTime := startTime, startTime
+		srcEndTime, dstEndTime := endTime, endTime
+
+		for _, fd := range fds.GetFlowsBySumID(fs.ID, filter) {
+			switch strings.ToLower(fd.Reporter) {
 			case "src":
+				srcStartTime = util.MinTime(fd.StartTime, srcStartTime)
+				srcEndTime = util.MaxTime(fd.EndTime, srcEndTime)
 				srcPacketsInSum += uint64(fd.PacketsIn)
 				srcPacketsOutSum += uint64(fd.PacketsOut)
 				srcBytesInSum += uint64(fd.BytesIn)
 				srcBytesOutSum += uint64(fd.BytesOut)
 			case "dst":
+				dstStartTime = util.MinTime(fd.StartTime, dstStartTime)
+				dstEndTime = util.MaxTime(fd.EndTime, dstEndTime)
 				dstPacketsInSum += uint64(fd.PacketsIn)
 				dstPacketsOutSum += uint64(fd.PacketsOut)
 				dstBytesInSum += uint64(fd.BytesIn)
@@ -204,20 +224,23 @@ func (fds *FlowDataStore) calcRates(epoch time.Time, window time.Duration) {
 			}
 		}
 
-		fs.SourcePacketsInRate = float64(srcPacketsInSum) / rateSeconds
-		fs.SourcePacketsOutRate = float64(srcPacketsOutSum) / rateSeconds
-		fs.SourceBytesInRate = float64(srcBytesInSum) / rateSeconds
-		fs.SourceBytesOutRate = float64(srcBytesOutSum) / rateSeconds
+		srcRateSeconds := max(srcEndTime.Sub(srcStartTime).Seconds(), 1)
+		dstRateSeconds := max(dstEndTime.Sub(dstStartTime).Seconds(), 1)
 
-		fs.DestPacketsInRate = float64(dstPacketsInSum) / rateSeconds
-		fs.DestPacketsOutRate = float64(dstPacketsOutSum) / rateSeconds
-		fs.DestBytesInRate = float64(dstBytesInSum) / rateSeconds
-		fs.DestBytesOutRate = float64(dstBytesOutSum) / rateSeconds
+		fs.SourcePacketsInRate = float64(srcPacketsInSum) / srcRateSeconds
+		fs.SourcePacketsOutRate = float64(srcPacketsOutSum) / srcRateSeconds
+		fs.SourceBytesInRate = float64(srcBytesInSum) / srcRateSeconds
+		fs.SourceBytesOutRate = float64(srcBytesOutSum) / srcRateSeconds
 
-		fs.SourceTotalPacketRate = float64(srcPacketsInSum+srcPacketsOutSum) / rateSeconds
-		fs.SourceTotalByteRate = float64(srcBytesInSum+srcBytesOutSum) / rateSeconds
-		fs.DestTotalPacketRate = float64(dstPacketsInSum+dstPacketsOutSum) / rateSeconds
-		fs.DestTotalByteRate = float64(dstBytesInSum+dstBytesOutSum) / rateSeconds
+		fs.DestPacketsInRate = float64(dstPacketsInSum) / dstRateSeconds
+		fs.DestPacketsOutRate = float64(dstPacketsOutSum) / dstRateSeconds
+		fs.DestBytesInRate = float64(dstBytesInSum) / dstRateSeconds
+		fs.DestBytesOutRate = float64(dstBytesOutSum) / dstRateSeconds
+
+		fs.SourceTotalPacketRate = float64(srcPacketsInSum+srcPacketsOutSum) / srcRateSeconds
+		fs.SourceTotalByteRate = float64(srcBytesInSum+srcBytesOutSum) / srcRateSeconds
+		fs.DestTotalPacketRate = float64(dstPacketsInSum+dstPacketsOutSum) / dstRateSeconds
+		fs.DestTotalByteRate = float64(dstBytesInSum+dstBytesOutSum) / dstRateSeconds
 		fds.inFlow <- fs
 	}
 }

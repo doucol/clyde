@@ -1,0 +1,44 @@
+{
+  "start_time": "2025-06-02T17:24:30Z",
+  "end_time": "2025-06-02T17:24:45Z",
+  "action": "Allow",
+  "source_name": "checkoutservice-855ff8d99-*",
+  "source_namespace": "default",
+  "source_labels": "app=checkoutservice | pod-template-hash=855ff8d99 | projectcalico.org/namespace=default | projectcalico.org/orchestrator=k8s | projectcalico.org/serviceaccount=checkoutservice",
+  "dest_name": "currencyservice-b7dcd96f5-*",
+  "dest_namespace": "default",
+  "dest_labels": "app=currencyservice | pod-template-hash=b7dcd96f5 | projectcalico.org/namespace=default | projectcalico.org/orchestrator=k8s | projectcalico.org/serviceaccount=currencyservice",
+  "protocol": "tcp",
+  "dest_port": 7000,
+  "reporter": "Dst",
+  "policies": {
+    "enforced": [
+      {
+        "kind": "CalicoNetworkPolicy",
+        "name": "allow-currency-ingress",
+        "namespace": "default",
+        "tier": "default",
+        "action": "Allow",
+        "policy_index": 0,
+        "rule_index": 0,
+        "trigger": null
+      }
+    ],
+    "pending": [
+      {
+        "kind": "CalicoNetworkPolicy",
+        "name": "allow-currency-ingress",
+        "namespace": "default",
+        "tier": "default",
+        "action": "Allow",
+        "policy_index": 0,
+        "rule_index": 0,
+        "trigger": null
+      }
+    ]
+  },
+  "packets_in": 6,
+  "packets_out": 4,
+  "bytes_in": 474,
+  "bytes_out": 368
+}

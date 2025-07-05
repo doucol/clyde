@@ -121,7 +121,7 @@ function render_env_vars() {
       error_exit "ERROR: Invalid VERSION value: ${VERSION} - unable to determine the appropriate OPYAML to use."
     fi
   fi
-  if [[ $(curl -L -s -o /dev/null -w "%{http_code}" "${OPYAML}") != 200 ]]; then
+  if [[ $(curl -L -s -o /dev/null -w "%{http_code}" "${OPYAML}" || true) != 200 ]]; then
     error_exit "ERROR: Unable to access the operator yaml at '${OPYAML}' - please check the env vars and try again."
   fi
 }
@@ -143,6 +143,9 @@ function confirm_state() {
   echo "  OPYAML   - ${OPYAML}"
   echo "  K8SVER   - ${K8SVER}"
   echo ""
+  if [[ "${CONFIRM}" == "true" ]]; then
+    return 0
+  fi
   read -p "Continue y/N? " -n 1 -r REPLY
   echo ""
   if [[ "${REPLY}" =~ ^[Yy]$ ]]; then
