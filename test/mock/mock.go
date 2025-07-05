@@ -59,7 +59,7 @@ type SSEServer struct {
 	clients  map[chan *flowdata.FlowResponse]bool
 	flowKeys []*FlowKey
 	server   *http.Server
-	Connect  chan bool
+	Connect  chan int
 }
 
 // DefaultConfig returns a default server configuration
@@ -83,7 +83,7 @@ func NewSSEServer(config ServerConfig) *SSEServer {
 		config:   config,
 		clients:  make(map[chan *flowdata.FlowResponse]bool),
 		flowKeys: generateRandomFlowKeys(config),
-		Connect:  make(chan bool, 100),
+		Connect:  make(chan int, 100),
 	}
 }
 
@@ -210,7 +210,7 @@ func (s *SSEServer) generateFlow(fk *FlowKey, reporter, action string) *flowdata
 // addClient adds a new SSE client
 func (s *SSEServer) addClient(client chan *flowdata.FlowResponse) {
 	s.clients[client] = true
-	s.Connect <- true
+	s.Connect <- len(s.clients)
 	log.Printf("Client connected. Total clients: %d", len(s.clients))
 }
 
@@ -323,8 +323,8 @@ func (s *SSEServer) Start(ready chan bool) error {
 	s.server = &http.Server{Addr: addr}
 
 	log.Printf("Starting SSE server on %s", addr)
-	log.Printf("Stream interval: %v", s.config.StreamInterval)
-	log.Printf("Max clients: %d", s.config.MaxClients)
+	// log.Printf("Stream interval: %v", s.config.StreamInterval)
+	// log.Printf("Max clients: %d", s.config.MaxClients)
 
 	if ready != nil {
 		close(ready)

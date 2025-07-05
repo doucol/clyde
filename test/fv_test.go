@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -14,20 +15,26 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func clearTestData(t *testing.T) {
+	if err := flowdata.Clear(); err != nil {
+		t.Fatalf("Failed to clear flow data: %v", err)
+	}
+}
+
 func TestFlowData(t *testing.T) {
+	if err := os.Setenv("XDG_DATA_HOME", os.TempDir()); err != nil {
+		t.Fatalf("Failed to set XDG_DATA_HOME: %v", err)
+	}
 	logrus.SetLevel(logrus.InfoLevel)
 	t.Log("Starting Functional Validation (FV) testing...")
 	ctx, cancel := context.WithCancel(context.Background())
 	wgMock := sync.WaitGroup{}
 	wgWhisker := sync.WaitGroup{}
-
 	config := mock.DefaultConfig()
 	config.AutoBroadcast = false
 	server := mock.NewSSEServer(config)
-
-	if err := flowdata.Clear(); err != nil {
-		t.Fatalf("Failed to clear flow data: %v", err)
-	}
+	clearTestData(t)
+	defer clearTestData(t)
 	mockReady := make(chan bool)
 	whiskerReady := make(chan bool)
 
@@ -78,7 +85,7 @@ func TestFlowData(t *testing.T) {
 	t.Logf("Sleeping to allow data processing")
 	time.Sleep(2 * time.Second)
 
-	t.Logf("Cancelling context to stop data processing")
+	t.Logf("Cancelling context to stop whisker")
 	cancel()
 	t.Logf("Waiting for whisker to finish")
 	wgWhisker.Wait()
