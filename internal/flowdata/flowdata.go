@@ -1,3 +1,4 @@
+// Package flowdata provides structures and methods for handling flow data in a network monitoring context.
 package flowdata
 
 import (
@@ -164,6 +165,7 @@ type SortAttributes struct {
 }
 
 // [Flower] interface
+
 func (fd *FlowData) GetID() int {
 	return fd.ID
 }

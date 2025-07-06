@@ -1,3 +1,4 @@
+// Package flowcache provides a caching layer for flow data and flow sums.
 package flowcache
 
 import (

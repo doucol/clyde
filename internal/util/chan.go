@@ -30,12 +30,13 @@ func ChanClose[T any](ch ...chan T) {
 	}
 }
 
-func ChanWaitTimeout[T any](cWait chan T, seconds time.Duration, cSignal ...chan T) error {
+func ChanWaitTimeout[T any](cWait chan T, seconds time.Duration, cSignal ...chan T) (T, error) {
 	select {
-	case <-cWait:
+	case v := <-cWait:
 		ChanClose(cSignal...)
-		return nil
+		return v, nil
 	case <-time.After(time.Second * seconds):
-		return errors.New("timeout waiting for channel signal")
+		var empty T
+		return empty, errors.New("timeout waiting for channel signal")
 	}
 }

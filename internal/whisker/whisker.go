@@ -126,7 +126,7 @@ func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool)
 		}()
 	}
 
-	if err := util.ChanWaitTimeout(sseReady, 2, whiskerReady); err != nil {
+	if _, err := util.ChanWaitTimeout(sseReady, 2, whiskerReady); err != nil {
 		logrus.Panicf("error waiting for sse consumer to be ready: %v", err)
 	} else {
 		logrus.Debug("Whisker is running and waiting for goroutines to exit")

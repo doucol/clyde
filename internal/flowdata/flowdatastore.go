@@ -56,7 +56,7 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 	}
 	return &FlowDataStore{
 		db:     db,
-		stop:   make(chan struct{}),
+		stop:   make(chan struct{}, 1),
 		inFlow: make(chan Flower, 1000),
 	}, nil
 }
@@ -77,30 +77,31 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 		if recoverFunc != nil {
 			defer recoverFunc()
 		}
-		for f := range fds.inFlow {
-			if f == nil {
-				logrus.Debug("stop signal received, exiting inFlow goroutine")
+		for {
+			select {
+			case <-fds.stop:
 				return
-			}
-			switch fl := f.(type) {
-			case *FlowData:
-				fs, newSum, err := fds.addFlow(fl)
-				if err != nil {
-					panic(err)
+			case f := <-fds.inFlow:
+				switch fl := f.(type) {
+				case *FlowData:
+					fs, newSum, err := fds.addFlow(fl)
+					if err != nil {
+						panic(err)
+					}
+					if newSum {
+						logrus.Tracef("added flow data: new flow sum: %s", fs.Key)
+					} else {
+						logrus.Tracef("added flow data: existing flow sum: %s", fs.Key)
+					}
+				case *FlowSum:
+					if err := fds.db.Save(fl); err != nil {
+						logrus.WithError(err).Panic("error saving flow sum")
+					} else {
+						logrus.Tracef("updated flow sum: %s", fl.Key)
+					}
+				default:
+					panic("unknown type in inFlow channel")
 				}
-				if newSum {
-					logrus.Tracef("added flow data: new flow sum: %s", fs.Key)
-				} else {
-					logrus.Tracef("added flow data: existing flow sum: %s", fs.Key)
-				}
-			case *FlowSum:
-				if err := fds.db.Save(fl); err != nil {
-					logrus.WithError(err).Panic("error saving flow sum")
-				} else {
-					logrus.Tracef("updated flow sum: %s", fl.Key)
-				}
-			default:
-				panic("unknown type in inFlow channel")
 			}
 		}
 	}()
@@ -112,13 +113,12 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 			defer recoverFunc()
 		}
 		// TODO: add ability to configure the window
-		epoch := time.Now().UTC()
-		window := time.Minute * 5
+		window := time.Minute
 		tock := time.Tick(5 * time.Second)
 		for {
 			select {
 			case <-tock:
-				fds.calcRates(epoch, window)
+				fds.calcRates(window)
 			case <-fds.stop:
 				logrus.Debug("stop signal received, exiting rate calculation")
 				return
@@ -129,16 +129,11 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 
 func (fds *FlowDataStore) Close() {
 	logrus.Debug("closing flow data store")
+	close(fds.stop)
+	defer close(fds.inFlow)
 	if fds.wg != nil {
-		// send stop signals
-		fds.stop <- struct{}{}
-		fds.inFlow <- nil
-		// wait for goroutines to finish
 		fds.wg.Wait()
 	}
-	// and close everything
-	close(fds.stop)
-	close(fds.inFlow)
 	if err := fds.db.Close(); err != nil {
 		logrus.WithError(err).Error("error closing flow data store")
 	}
@@ -184,20 +179,26 @@ func (fds *FlowDataStore) addFlow(fd *FlowData) (*FlowSum, bool, error) {
 }
 
 func (fds *FlowDataStore) AddFlow(fd *FlowData) {
-	fds.inFlow <- fd
+	select {
+	case <-fds.stop:
+		return
+	default:
+		fds.inFlow <- fd
+	}
 }
 
-func (fds *FlowDataStore) calcRates(epoch time.Time, window time.Duration) {
-	const year = time.Hour * 24 * 365
+func (fds *FlowDataStore) calcRates(window time.Duration) {
+	logrus.Debugf("calculating flow rates for window: %s", window)
 	now := time.Now().UTC()
-	secondsSinceEpoch := now.Sub(epoch).Seconds()
+	const year = time.Hour * 24 * 365
 	windowSeconds := window.Seconds()
-	minSeconds := min(secondsSinceEpoch, windowSeconds)
-	durationToSubtract := time.Duration(minSeconds * float64(time.Second) * -1)
+	durationToSubtract := time.Duration(float64(time.Second) * -windowSeconds)
 	filter := FilterAttributes{DateFrom: now.Add(durationToSubtract)}
 	startTime, endTime := now.Add(year), now.Add(-year)
 
 	fss := fds.GetFlowSums(FilterAttributes{})
+
+	logrus.Debugf("found %d flow sums to calculate rates for", len(fss))
 
 	for _, fs := range fss {
 		var srcPacketsInSum, srcPacketsOutSum, srcBytesInSum, srcBytesOutSum uint64
@@ -205,7 +206,10 @@ func (fds *FlowDataStore) calcRates(epoch time.Time, window time.Duration) {
 		srcStartTime, dstStartTime := startTime, startTime
 		srcEndTime, dstEndTime := endTime, endTime
 
-		for _, fd := range fds.GetFlowsBySumID(fs.ID, filter) {
+		flowDataSet := fds.GetFlowsBySumID(fs.ID, filter)
+		logrus.Tracef("processing %d flow data entries for filter %+v", len(flowDataSet), filter)
+
+		for _, fd := range flowDataSet {
 			switch strings.ToLower(fd.Reporter) {
 			case "src":
 				srcStartTime = util.MinTime(fd.StartTime, srcStartTime)
@@ -231,17 +235,28 @@ func (fds *FlowDataStore) calcRates(epoch time.Time, window time.Duration) {
 		fs.SourcePacketsOutRate = float64(srcPacketsOutSum) / srcRateSeconds
 		fs.SourceBytesInRate = float64(srcBytesInSum) / srcRateSeconds
 		fs.SourceBytesOutRate = float64(srcBytesOutSum) / srcRateSeconds
+		logrus.Tracef("Source rates: PacketsInRate: %f, PacketsOutRate: %f, BytesInRate: %f, BytesOutRate: %f, sec: %f", fs.SourcePacketsInRate, fs.SourcePacketsOutRate, fs.SourceBytesInRate, fs.SourceBytesOutRate, srcRateSeconds)
 
 		fs.DestPacketsInRate = float64(dstPacketsInSum) / dstRateSeconds
 		fs.DestPacketsOutRate = float64(dstPacketsOutSum) / dstRateSeconds
 		fs.DestBytesInRate = float64(dstBytesInSum) / dstRateSeconds
 		fs.DestBytesOutRate = float64(dstBytesOutSum) / dstRateSeconds
+		logrus.Tracef("Dest rates: PacketsInRate: %f, PacketsOutRate: %f, BytesInRate: %f, BytesOutRate: %f, sec: %f", fs.DestPacketsInRate, fs.DestPacketsOutRate, fs.DestBytesInRate, fs.DestBytesOutRate, dstRateSeconds)
 
 		fs.SourceTotalPacketRate = float64(srcPacketsInSum+srcPacketsOutSum) / srcRateSeconds
 		fs.SourceTotalByteRate = float64(srcBytesInSum+srcBytesOutSum) / srcRateSeconds
+		logrus.Tracef("Total rates: SourceTotalPacketRate: %f, SourceTotalByteRate: %f, sec: %f", fs.SourceTotalPacketRate, fs.SourceTotalByteRate, srcRateSeconds)
+
 		fs.DestTotalPacketRate = float64(dstPacketsInSum+dstPacketsOutSum) / dstRateSeconds
 		fs.DestTotalByteRate = float64(dstBytesInSum+dstBytesOutSum) / dstRateSeconds
-		fds.inFlow <- fs
+		logrus.Tracef("Total rates: DestTotalPacketRate: %f, DestTotalByteRate: %f, sec: %f", fs.DestTotalPacketRate, fs.DestTotalByteRate, dstRateSeconds)
+
+		select {
+		case <-fds.stop:
+			return
+		default:
+			fds.inFlow <- fs
+		}
 	}
 }
 

@@ -134,7 +134,7 @@ type FlowPair struct {
 }
 
 func (s *SSEServer) GenerateFlowPairs() map[string]FlowPair {
-	count := rand.Intn(len(s.flowKeys) / 2)
+	count := rand.Intn(len(s.flowKeys)/2) + 1
 	if count <= 0 {
 		return map[string]FlowPair{}
 	}
@@ -159,6 +159,8 @@ func (s *SSEServer) generateFlow(fk *FlowKey, reporter, action string) *flowdata
 	now := time.Now().UTC().Add(time.Second * -30)
 	startTime := now.Round(time.Second * 15)
 	endTime := startTime.Add(time.Second * 15)
+	srcLabels := fmt.Sprintf("app=%s | projectcalico.org/orchestrator=k8s", fk.SrcServiceName)
+	dstLabels := fmt.Sprintf("app=%s | projectcalico.org/orchestrator=k8s", fk.DstServiceName)
 	flow := &flowdata.FlowResponse{
 		StartTime:       startTime,
 		EndTime:         endTime,
@@ -168,8 +170,8 @@ func (s *SSEServer) generateFlow(fk *FlowKey, reporter, action string) *flowdata
 		DestName:        fk.DstName,
 		Protocol:        fk.Protocol,
 		DestPort:        fk.Port,
-		SourceLabels:    fmt.Sprintf("app=%s | projectcalico.org/orchestrator=k8s", fk.SrcServiceName),
-		DestLabels:      fmt.Sprintf("app=%s | projectcalico.org/orchestrator=k8s", fk.DstServiceName),
+		SourceLabels:    util.NormalizeLabels(srcLabels),
+		DestLabels:      util.NormalizeLabels(dstLabels),
 		Reporter:        reporter,
 		Action:          action,
 		Policies: flowdata.PolicyTrace{
