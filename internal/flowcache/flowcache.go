@@ -12,8 +12,13 @@ import (
 	"github.com/doucol/clyde/internal/util"
 )
 
+type FlowDataStore interface {
+	GetFlowSums(filter flowdata.FilterAttributes) []*flowdata.FlowSum
+	GetFlowsBySumID(sumID int, filter flowdata.FilterAttributes) []*flowdata.FlowData
+}
+
 type FlowCache struct {
-	fds          *flowdata.FlowDataStore
+	fds          FlowDataStore
 	flowSumCache *cache.Cache[string, []*flowdata.FlowSum]
 	flowCache    *cache.Cache[string, []*flowdata.FlowData]
 }
@@ -23,7 +28,7 @@ const (
 	flowDataBySumID  = "flowsBySumID"
 )
 
-func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
+func NewFlowCache(ctx context.Context, fds FlowDataStore) *FlowCache {
 	fc := &FlowCache{
 		fds:          fds,
 		flowSumCache: cache.New[string, []*flowdata.FlowSum](),
@@ -46,7 +51,11 @@ func NewFlowCache(ctx context.Context, fds *flowdata.FlowDataStore) *FlowCache {
 }
 
 func (fc *FlowCache) cacheSortedFlowSums(cacheKey string, fieldName string, ascending bool) []*flowdata.FlowSum {
-	if flowSums, ok := fc.flowSumCache.Get(flowSumCacheName); ok {
+	flowSums, _ := fc.flowSumCache.Get(flowSumCacheName)
+	if flowSums == nil {
+		flowSums = fc.cacheFlowSums()
+	}
+	if len(flowSums) > 0 {
 		fsc := make([]*flowdata.FlowSum, len(flowSums))
 		copy(fsc, flowSums)
 		util.SortSlice(fsc, fieldName, ascending)
@@ -69,7 +78,7 @@ func (fc *FlowCache) getFlowSums(sortBy string, asc bool) []*flowdata.FlowSum {
 	} else if sortBy != "" {
 		return fc.cacheSortedFlowSums(cacheKey, sortBy, asc)
 	}
-	return []*flowdata.FlowSum{}
+	return fc.cacheFlowSums()
 }
 
 func (fc *FlowCache) GetFlowSumTotals() []*flowdata.FlowSum {
