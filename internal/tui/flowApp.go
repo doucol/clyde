@@ -1,3 +1,4 @@
+// Package tui provides the terminal user interface for Clyde.
 package tui
 
 import (
@@ -44,14 +45,15 @@ func (fa *FlowApp) updateSort(event *tcell.EventKey, fieldName string, defaultOr
 	if page, _ := fa.pages.GetFrontPage(); page == pageName {
 		sa := global.GetSort()
 		asc := defaultOrder
-		if pageName == pageSummaryTotalsName {
+		switch pageName {
+		case pageSummaryTotalsName:
 			if sa.SumTotalsFieldName == fieldName {
 				asc = !sa.SumTotalsAscending
 			}
 			global.SetSort(flowdata.SortAttributes{SumTotalsFieldName: fieldName, SumTotalsAscending: asc})
 			fa.fas.setSum(0, 0)
 			return nil
-		} else if pageName == pageSummaryRatesName {
+		case pageSummaryRatesName:
 			if sa.SumRatesFieldName == fieldName {
 				asc = !sa.SumRatesAscending
 			}
@@ -106,6 +108,11 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 			case '/':
 				if !fa.pages.HasPage(modalFilterDialogName) {
 					fa.filterModal()
+					return nil
+				}
+			case '?':
+				if !fa.pages.HasPage(helpDialogName) {
+					fa.showHelpDialog()
 					return nil
 				}
 			}
