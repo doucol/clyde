@@ -12,6 +12,18 @@ func ChanSendEmpty[T any](ch chan T, count int) {
 	}
 }
 
+func ChanSendTimeout[T any](ch chan T, val T, milliseconds int) error {
+	if cap(ch) > 0 {
+		panic("channel must be unbuffered")
+	}
+	select {
+	case ch <- val:
+		return nil
+	case <-time.After(time.Millisecond * time.Duration(milliseconds)):
+		return errors.New("timeout sending to channel")
+	}
+}
+
 func ChanClose[T any](ch ...chan T) {
 	for _, c := range ch {
 		if c == nil {

@@ -29,7 +29,8 @@ var rootCmd = &cobra.Command{
 	Long:  "clyde\nA collection of Project Calico utilities",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := whisker.DefaultConfig()
-		return whisker.WatchFlows(cmd.Context(), cfg, nil)
+		w := whisker.New(cfg)
+		return w.WatchFlows(cmd.Context(), nil)
 	},
 }
 

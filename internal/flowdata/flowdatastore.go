@@ -15,10 +15,14 @@ import (
 )
 
 type FlowDataStore struct {
-	db     *storm.DB
-	inFlow chan Flower
-	wg     *sync.WaitGroup
-	stop   chan struct{}
+	db               *storm.DB
+	inFlow           chan Flower
+	wg               *sync.WaitGroup
+	stop             chan struct{}
+	flowAdded        chan int64
+	flowSumAdded     chan int64
+	flowSumsUpdated  chan int64
+	flowRatesUpdated chan int64
 }
 
 type Flower interface {
@@ -89,14 +93,18 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 						panic(err)
 					}
 					if newSum {
+						chanSignal(fds.flowSumAdded, int64(fs.ID))
 						logrus.Tracef("added flow data: new flow sum: %s", fs.Key)
 					} else {
+						chanSignal(fds.flowSumsUpdated, int64(fs.ID))
 						logrus.Tracef("added flow data: existing flow sum: %s", fs.Key)
 					}
+					chanSignal(fds.flowAdded, int64(fl.ID))
 				case *FlowSum:
 					if err := fds.db.Save(fl); err != nil {
 						logrus.WithError(err).Panic("error saving flow sum")
 					} else {
+						chanSignal(fds.flowRatesUpdated, int64(fl.ID))
 						logrus.Tracef("updated flow sum: %s", fl.Key)
 					}
 				default:
@@ -117,20 +125,58 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 		tock := time.Tick(5 * time.Second)
 		for {
 			select {
-			case <-tock:
-				fds.calcRates(window)
 			case <-fds.stop:
 				logrus.Debug("stop signal received, exiting rate calculation")
 				return
+			case <-tock:
+				fds.calcRates(window)
 			}
 		}
 	}()
 }
 
+func (fds *FlowDataStore) FlowAdded() chan int64 {
+	if fds.flowAdded == nil {
+		fds.flowAdded = make(chan int64)
+	}
+	return fds.flowAdded
+}
+
+func (fds *FlowDataStore) FlowSumAdded() chan int64 {
+	if fds.flowSumAdded == nil {
+		fds.flowSumAdded = make(chan int64)
+	}
+	return fds.flowSumAdded
+}
+
+func (fds *FlowDataStore) FlowSumsUpdated() chan int64 {
+	if fds.flowSumsUpdated == nil {
+		fds.flowSumsUpdated = make(chan int64)
+	}
+	return fds.flowSumsUpdated
+}
+
+func (fds *FlowDataStore) FlowRatesUpdated() chan int64 {
+	if fds.flowRatesUpdated == nil {
+		fds.flowRatesUpdated = make(chan int64)
+	}
+	return fds.flowRatesUpdated
+}
+
+func chanSignal[T any](ch chan T, val T) {
+	if ch == nil {
+		return
+	}
+	if err := util.ChanSendTimeout(ch, val, 10); err != nil {
+		logrus.WithError(err).Error("error sending to channel")
+	}
+}
+
 func (fds *FlowDataStore) Close() {
 	logrus.Debug("closing flow data store")
-	close(fds.stop)
-	defer close(fds.inFlow)
+	util.ChanClose(fds.stop)
+	defer util.ChanClose(fds.inFlow)
+	defer util.ChanClose(fds.flowAdded, fds.flowSumAdded, fds.flowSumsUpdated, fds.flowRatesUpdated)
 	if fds.wg != nil {
 		fds.wg.Wait()
 	}

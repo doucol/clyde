@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
@@ -58,13 +57,16 @@ func TestFlowData(t *testing.T) {
 		t.Log("Mock server is ready")
 	}
 
+	var wh *whisker.Whisker
+
 	wgWhisker.Add(1)
 	go func() {
 		defer wgWhisker.Done()
 		wc := whisker.DefaultConfig()
 		wc.TerminalUI = false
 		wc.URL = server.URL()
-		if err := whisker.WatchFlows(ctx, wc, whiskerReady); err != nil {
+		wh = whisker.New(wc)
+		if err := wh.WatchFlows(ctx, whiskerReady); err != nil {
 			log.Fatalf("Failed to watch flows: %v", err)
 		}
 	}()
@@ -88,7 +90,14 @@ func TestFlowData(t *testing.T) {
 	server.BroadcastFlowPairs(pairs)
 
 	t.Logf("Sleeping to allow data processing and rate calculations")
-	time.Sleep(8 * time.Second)
+	var flowSumCount int
+	for range wh.FlowRatesUpdated() {
+		flowSumCount++
+		if flowSumCount >= len(pairs) {
+			break
+		}
+	}
+	// time.Sleep(8 * time.Second)
 
 	t.Logf("Cancelling context to stop whisker")
 	cancel()

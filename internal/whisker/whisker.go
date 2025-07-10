@@ -39,18 +39,32 @@ func DefaultConfig() *WhiskerConfig {
 	}
 }
 
-func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool) error {
+type Whisker struct {
+	cfg *WhiskerConfig
+	fds *flowdata.FlowDataStore
+}
+
+func New(cfg *WhiskerConfig) *Whisker {
+	return &Whisker{cfg: cfg}
+}
+
+func (w *Whisker) FlowRatesUpdated() chan int64 {
+	return w.fds.FlowRatesUpdated()
+}
+
+func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error {
+	var err error
 	wg := &sync.WaitGroup{}
-	fds, err := flowdata.NewFlowDataStore()
+	w.fds, err = flowdata.NewFlowDataStore()
 	if err != nil {
 		return err
 	}
-	defer fds.Close()
+	defer w.fds.Close()
 
-	flowCache := flowcache.NewFlowCache(ctx, fds)
-	flowApp := tui.NewFlowApp(fds, flowCache)
+	flowCache := flowcache.NewFlowCache(ctx, w.fds)
+	flowApp := tui.NewFlowApp(w.fds, flowCache)
 
-	recoverFunc := cfg.RecoverFunc
+	recoverFunc := w.cfg.RecoverFunc
 	if recoverFunc == nil {
 		recoverFunc = func() {
 			if err := recover(); err != nil {
@@ -61,9 +75,9 @@ func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool)
 	}
 
 	// Go capture flows
-	fds.Run(recoverFunc)
+	w.fds.Run(recoverFunc)
 
-	flowCatcher := cfg.CatcherFunc
+	flowCatcher := w.cfg.CatcherFunc
 	if flowCatcher == nil {
 		flowCatcher = func(data string) error {
 			var fr flowdata.FlowResponse
@@ -71,7 +85,7 @@ func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool)
 				logrus.Panicf("error unmarshalling flow data: %v", err)
 			}
 			fd := &flowdata.FlowData{FlowResponse: fr}
-			fds.AddFlow(fd)
+			w.fds.AddFlow(fd)
 			return nil
 		}
 	}
@@ -86,8 +100,8 @@ func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool)
 		tock := time.Tick(2 * time.Second)
 		var lastError error
 		for {
-			dc := catcher.NewDataCatcher(cfg.CalicoNamespace, cfg.WhiskerContainer, cfg.URLPath, flowCatcher, recoverFunc)
-			dc.URLFull = cfg.URL
+			dc := catcher.NewDataCatcher(w.cfg.CalicoNamespace, w.cfg.WhiskerContainer, w.cfg.URLPath, flowCatcher, recoverFunc)
+			dc.URLFull = w.cfg.URL
 			if err := dc.CatchServerSentEvents(ctx, sseReady); err != nil {
 				// Don't keep logging the same error
 				if !errors.Is(err, lastError) {
@@ -113,7 +127,7 @@ func WatchFlows(ctx context.Context, cfg *WhiskerConfig, whiskerReady chan bool)
 	}()
 
 	// Go run the flow watcher TUI app
-	if cfg.TerminalUI {
+	if w.cfg.TerminalUI {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
