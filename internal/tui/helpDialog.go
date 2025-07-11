@@ -31,18 +31,30 @@ func (fa *FlowApp) showHelpDialog() {
 		table.SetCell(i+1, 0, tview.NewTableCell(entry.Key))
 		table.SetCell(i+1, 1, tview.NewTableCell(entry.Description))
 	}
-	table.SetDoneFunc(func(key tcell.Key) {
-		fa.pages.RemovePage(helpDialogName)
-	})
-	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		// Close on ESC or '?' again
+
+table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape || (event.Key() == tcell.KeyRune && event.Rune() == '?') {
 			fa.pages.RemovePage(helpDialogName)
 			return nil
 		}
 		return event
 	})
-	modal := tview.NewFlex().SetDirection(tview.FlexRow)
-	modal.AddItem(table, 0, 1, true)
-	fa.pages.AddPage(helpDialogName, modal, true, true)
+
+table.SetDoneFunc(func(key tcell.Key) {
+		fa.pages.RemovePage(helpDialogName)
+	})
+
+	// Center the table in a modal-like Flex
+	modalFlex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			SetDirection(tview.FlexColumn).
+			AddItem(nil, 0, 1, false).
+			AddItem(table, 60, 1, true).
+			AddItem(nil, 0, 1, false),
+			len(helpEntries)+4, 1, true).
+		AddItem(nil, 0, 1, false)
+
+	fa.pages.AddPage(helpDialogName, modalFlex, true, true)
 }
