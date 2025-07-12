@@ -19,10 +19,12 @@ type FlowDataStore struct {
 	inFlow           chan Flower
 	wg               *sync.WaitGroup
 	stop             chan struct{}
-	flowAdded        chan int64
-	flowSumAdded     chan int64
-	flowSumsUpdated  chan int64
-	flowRatesUpdated chan int64
+	flowAdded        chan Flower
+	flowSumAdded     chan Flower
+	flowSumsUpdated  chan Flower
+	flowRatesUpdated chan Flower
+	RateCalcWindow   int
+	RateCalcInterval int
 }
 
 type Flower interface {
@@ -59,9 +61,11 @@ func NewFlowDataStore() (*FlowDataStore, error) {
 		return nil, err
 	}
 	return &FlowDataStore{
-		db:     db,
-		stop:   make(chan struct{}, 1),
-		inFlow: make(chan Flower, 1000),
+		db:               db,
+		stop:             make(chan struct{}, 1),
+		inFlow:           make(chan Flower, 1000),
+		RateCalcWindow:   60, // Default to 60 seconds
+		RateCalcInterval: 5,  // Default to 5 seconds
 	}, nil
 }
 
@@ -92,19 +96,19 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 					if err != nil {
 						panic(err)
 					}
+					chanSignal(fds.flowAdded, f)
 					if newSum {
-						chanSignal(fds.flowSumAdded, int64(fs.ID))
+						chanSignal(fds.flowSumAdded, f)
 						logrus.Tracef("added flow data: new flow sum: %s", fs.Key)
 					} else {
-						chanSignal(fds.flowSumsUpdated, int64(fs.ID))
+						chanSignal(fds.flowSumsUpdated, f)
 						logrus.Tracef("added flow data: existing flow sum: %s", fs.Key)
 					}
-					chanSignal(fds.flowAdded, int64(fl.ID))
 				case *FlowSum:
 					if err := fds.db.Save(fl); err != nil {
 						logrus.WithError(err).Panic("error saving flow sum")
 					} else {
-						chanSignal(fds.flowRatesUpdated, int64(fl.ID))
+						chanSignal(fds.flowRatesUpdated, f)
 						logrus.Tracef("updated flow sum: %s", fl.Key)
 					}
 				default:
@@ -120,45 +124,43 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 		if recoverFunc != nil {
 			defer recoverFunc()
 		}
-		// TODO: add ability to configure the window
-		window := time.Minute
-		tock := time.Tick(5 * time.Second)
+		tock := time.Tick(time.Duration(fds.RateCalcInterval) * time.Second)
 		for {
 			select {
 			case <-fds.stop:
 				logrus.Debug("stop signal received, exiting rate calculation")
 				return
 			case <-tock:
-				fds.calcRates(window)
+				fds.calcRates()
 			}
 		}
 	}()
 }
 
-func (fds *FlowDataStore) FlowAdded() chan int64 {
+func (fds *FlowDataStore) FlowAdded() chan Flower {
 	if fds.flowAdded == nil {
-		fds.flowAdded = make(chan int64)
+		fds.flowAdded = make(chan Flower)
 	}
 	return fds.flowAdded
 }
 
-func (fds *FlowDataStore) FlowSumAdded() chan int64 {
+func (fds *FlowDataStore) FlowSumAdded() chan Flower {
 	if fds.flowSumAdded == nil {
-		fds.flowSumAdded = make(chan int64)
+		fds.flowSumAdded = make(chan Flower)
 	}
 	return fds.flowSumAdded
 }
 
-func (fds *FlowDataStore) FlowSumsUpdated() chan int64 {
+func (fds *FlowDataStore) FlowSumsUpdated() chan Flower {
 	if fds.flowSumsUpdated == nil {
-		fds.flowSumsUpdated = make(chan int64)
+		fds.flowSumsUpdated = make(chan Flower)
 	}
 	return fds.flowSumsUpdated
 }
 
-func (fds *FlowDataStore) FlowRatesUpdated() chan int64 {
+func (fds *FlowDataStore) FlowRatesUpdated() chan Flower {
 	if fds.flowRatesUpdated == nil {
-		fds.flowRatesUpdated = make(chan int64)
+		fds.flowRatesUpdated = make(chan Flower)
 	}
 	return fds.flowRatesUpdated
 }
@@ -233,12 +235,11 @@ func (fds *FlowDataStore) AddFlow(fd *FlowData) {
 	}
 }
 
-func (fds *FlowDataStore) calcRates(window time.Duration) {
-	logrus.Debugf("calculating flow rates for window: %s", window)
+func (fds *FlowDataStore) calcRates() {
+	logrus.Debugf("calculating flow rates for window: %d", fds.RateCalcWindow)
 	now := time.Now().UTC()
 	const year = time.Hour * 24 * 365
-	windowSeconds := window.Seconds()
-	durationToSubtract := time.Duration(float64(time.Second) * -windowSeconds)
+	durationToSubtract := time.Duration(time.Second * time.Duration(-fds.RateCalcWindow))
 	filter := FilterAttributes{DateFrom: now.Add(durationToSubtract)}
 	startTime, endTime := now.Add(year), now.Add(-year)
 

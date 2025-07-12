@@ -23,6 +23,8 @@ type WhiskerConfig struct {
 	WhiskerContainer string
 	URL              string
 	URLPath          string
+	RateCalcWindow   int
+	RateCalcInterval int
 	RecoverFunc      func()
 	CatcherFunc      catcher.CatcherFunc
 }
@@ -36,6 +38,8 @@ func DefaultConfig() *WhiskerConfig {
 		RecoverFunc:      nil,
 		CatcherFunc:      nil,
 		URL:              "",
+		RateCalcWindow:   60,
+		RateCalcInterval: 5,
 	}
 }
 
@@ -48,7 +52,23 @@ func New(cfg *WhiskerConfig) *Whisker {
 	return &Whisker{cfg: cfg}
 }
 
-func (w *Whisker) FlowRatesUpdated() chan int64 {
+func (w *Whisker) Config() *WhiskerConfig {
+	return w.cfg
+}
+
+func (w *Whisker) FlowAdded() chan flowdata.Flower {
+	return w.fds.FlowAdded()
+}
+
+func (w *Whisker) FlowSumAdded() chan flowdata.Flower {
+	return w.fds.FlowSumAdded()
+}
+
+func (w *Whisker) FlowSumsUpdated() chan flowdata.Flower {
+	return w.fds.FlowSumsUpdated()
+}
+
+func (w *Whisker) FlowRatesUpdated() chan flowdata.Flower {
 	return w.fds.FlowRatesUpdated()
 }
 
@@ -60,6 +80,8 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 		return err
 	}
 	defer w.fds.Close()
+	w.fds.RateCalcWindow = w.cfg.RateCalcWindow
+	w.fds.RateCalcInterval = w.cfg.RateCalcInterval
 
 	flowCache := flowcache.NewFlowCache(ctx, w.fds)
 	flowApp := tui.NewFlowApp(w.fds, flowCache)
@@ -90,7 +112,7 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 		}
 	}
 
-	sseReady := make(chan bool, 1)
+	sseReady := make(chan bool)
 
 	wg.Add(1)
 	go func() {
@@ -141,9 +163,9 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	}
 
 	if _, err := util.ChanWaitTimeout(sseReady, 2, whiskerReady); err != nil {
-		logrus.Panicf("error waiting for sse consumer to be ready: %v", err)
+		logrus.WithError(err).Panic("error waiting for sse consumer to be ready")
 	} else {
-		logrus.Debug("Whisker is running and waiting for goroutines to exit")
+		logrus.Debug("Whisker is running and waiting for an exit signal")
 	}
 
 	// Wait for both goroutines to finish

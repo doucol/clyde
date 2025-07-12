@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/util"
@@ -85,24 +86,59 @@ func TestFlowData(t *testing.T) {
 	}
 
 	// now that we have our mock SSE server up & whisker connected, let's
-	// broadcast some flow pairs
+	// broadcast some flows
 	pairs := server.GenerateFlowPairs()
-	server.BroadcastFlowPairs(pairs)
-
-	t.Logf("Sleeping to allow data processing and rate calculations")
-	var flowSumCount int
-	for range wh.FlowRatesUpdated() {
-		flowSumCount++
-		if flowSumCount >= len(pairs) {
-			break
-		}
+	pairCount := len(pairs)
+	flowCount := pairCount * 2
+	t.Logf("Broadcasting %d flow pairs (%d flows)", pairCount, flowCount)
+	chanMap := map[string]struct {
+		channel chan flowdata.Flower
+		count   int
+	}{
+		"FlowAdded":        {wh.FlowAdded(), flowCount},
+		"FlowSumAdded":     {wh.FlowSumAdded(), pairCount},
+		"FlowSumsUpdated":  {wh.FlowSumsUpdated(), pairCount},
+		"FlowRatesUpdated": {wh.FlowRatesUpdated(), pairCount},
 	}
-	// time.Sleep(8 * time.Second)
+	wg := &sync.WaitGroup{}
+	start := make(chan bool)
+	for name, s := range chanMap {
+		wg.Add(1)
+		go func(name string, ch chan flowdata.Flower, cnt int) {
+			defer wg.Done()
+			<-start
+			var eventCount int
+			t.Logf("Waiting for %s events", name)
+			select {
+			case <-ch:
+				t.Logf("Received %s event", name)
+				eventCount++
+			case <-time.After(time.Duration(wh.Config().RateCalcInterval+2) * time.Second):
+				t.Errorf("Timed out waiting for the first %s event", name)
+				return
+			}
+			for {
+				select {
+				case <-ch:
+					eventCount++
+				case <-time.After(1 * time.Second):
+					if eventCount != cnt {
+						t.Errorf("Expected %d events, got %d - %s", cnt, eventCount, name)
+					}
+					return
+				}
+			}
+		}(name, s.channel, s.count)
+	}
+	close(start)
+	server.BroadcastFlowPairs(pairs)
+	wg.Wait()
 
 	t.Logf("Cancelling context to stop whisker")
 	cancel()
 	t.Logf("Waiting for whisker to finish")
 	wgWhisker.Wait()
+	t.Logf("Whisker is finished")
 
 	// We have to wait for whisker to shutdown before we can open the
 	// flowdata store.
@@ -113,8 +149,8 @@ func TestFlowData(t *testing.T) {
 	defer fds.Close()
 
 	fss := fds.GetFlowSums(flowdata.FilterAttributes{})
-	if len(fss) != len(pairs) {
-		t.Fatalf("Flow sum count %d does not match test count %d", len(fss), len(pairs))
+	if len(fss) != pairCount {
+		t.Fatalf("Flow sum count %d does not match test count %d", len(fss), pairCount)
 	}
 
 	sumSrcMap := map[string]string{

@@ -325,8 +325,6 @@ func (s *SSEServer) Start(ready chan bool) error {
 	s.server = &http.Server{Addr: addr}
 
 	log.Printf("Starting SSE server on %s", addr)
-	// log.Printf("Stream interval: %v", s.config.StreamInterval)
-	// log.Printf("Max clients: %d", s.config.MaxClients)
 
 	if ready != nil {
 		close(ready)
