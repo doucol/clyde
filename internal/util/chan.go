@@ -1,10 +1,10 @@
 package util
 
 func ChanSendEmpty[T any](ch chan T, count int) {
-	for range count {
-		var val T
-		ch <- val
-	}
+    for i := 0; i < count; i++ {
+        var val T
+        ch <- val
+    }
 }
 
 func ChanClose[T any](ch ...chan T) {
