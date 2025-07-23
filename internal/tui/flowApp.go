@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	pageHomeName          = "home"
 	pageSummaryTotalsName = "summaryTotals"
 	pageSummaryRatesName  = "summaryRates"
 	pageSumDetailName     = "sumDetail"
@@ -80,6 +81,12 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 		switch event.Key() {
 		case tcell.KeyCtrlC:
 			return stop()
+		case tcell.KeyEscape:
+			page, _ := fa.pages.GetFrontPage()
+			if page == pageSummaryTotalsName || page == pageSummaryRatesName {
+				fa.pages.SwitchToPage(pageHomeName)
+				return nil
+			}
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'q':
@@ -94,6 +101,9 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 					fa.pages.SwitchToPage(pageSummaryTotalsName)
 					return nil
 				}
+			case 'h':
+				fa.pages.SwitchToPage(pageHomeName)
+				return nil
 			case 'p':
 				return fa.updateSort(event, "SourceTotalPacketRate", false, pageSummaryRatesName)
 			case 'P':
@@ -135,11 +145,12 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 		}
 	}()
 
-	fa.pages.AddPage(pageSummaryTotalsName, fa.viewSummary(), true, true)
+	fa.pages.AddPage(pageHomeName, fa.viewHomePage(ctx), true, true)
+	fa.pages.AddPage(pageSummaryTotalsName, fa.viewSummary(), true, false)
 	fa.pages.AddPage(pageSummaryRatesName, fa.viewSummaryRates(), true, false)
 	fa.pages.AddPage(pageSumDetailName, fa.viewSumDetail(), true, false)
 
-	// Start with a summary view
+	// Start with the home view
 	if err := fa.app.SetRoot(fa.pages, true).Run(); err != nil {
 		return err
 	}

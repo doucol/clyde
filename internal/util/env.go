@@ -7,6 +7,7 @@ import (
 )
 
 // Helper functions for environment variables
+
 func GetEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
@@ -17,7 +18,9 @@ func GetEnv(key, fallback string) string {
 func GetEnvInt(key string, fallback int) int {
 	if value, exists := os.LookupEnv(key); exists {
 		var result int
-		fmt.Sscanf(value, "%d", &result)
+		if _, err := fmt.Sscanf(value, "%d", &result); err != nil {
+			panic(fmt.Sprintf("Invalid integer value for %s: %s", key, value))
+		}
 		return result
 	}
 	return fallback

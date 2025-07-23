@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/doucol/clyde/internal/cmdctx"
+	"github.com/doucol/clyde/internal/util"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/sirupsen/logrus"
@@ -179,4 +182,192 @@ func (fa *FlowApp) viewFlowDetail() tview.Primitive {
 	flex.AddItem(moreDetails, 0, 1, true)
 	applyTheme(flex, tableDetailHeader, moreDetails)
 	return flex
+}
+
+func (fa *FlowApp) viewHomePage(ctx context.Context) tview.Primitive {
+	cc := cmdctx.CmdCtxFromContext(ctx)
+	clientset := cc.Clientset()
+	dyn := cc.ClientDyn()
+	restConfig := cc.GetK8sConfig()
+	info := util.GetClusterNetworkingInfo(ctx, clientset, dyn, restConfig)
+
+	list := tview.NewList()
+	list.SetBorder(true).SetTitle("Clyde - Main Menu")
+
+	// Option 1: General Kubernetes Network information
+	list.AddItem("General Kubernetes Network Information", "View CNI, IP ranges, and network configuration", '1', func() {
+		fa.showNetworkInfoModal(info)
+	})
+
+	// Option 2: General Calico information (if Calico is installed)
+	if info.CalicoInstalled {
+		list.AddItem("General Calico Information", "View Calico version, operator status, and configuration", '2', func() {
+			fa.showCalicoInfoModal(info)
+		})
+	}
+
+	// Option 3 & 4: Flow pages (if Calico v3.30+ and whisker available)
+	canShowFlows := info.CalicoInstalled && info.OperatorInstalled &&
+		util.CompareVersions(info.CalicoVersion, "3.30.0") && info.WhiskerAvailable
+
+	if canShowFlows {
+		list.AddItem("Flow Sum Totals", "View flow summary totals", '3', func() {
+			fa.pages.SwitchToPage(pageSummaryTotalsName)
+		})
+
+		list.AddItem("Flow Sum Rates", "View flow summary rates", '4', func() {
+			fa.pages.SwitchToPage(pageSummaryRatesName)
+		})
+	}
+
+	// Option 5: Show help
+	list.AddItem("Help", "Show help information", 'h', func() {
+		fa.showHelpDialog()
+	})
+
+	// Option 6: Exit
+	list.AddItem("Exit", "Exit the application", 'q', func() {
+		fa.Stop()
+		cc.Cancel()
+	})
+
+	// Add installation option if needed
+	canInstall := !info.OperatorInstalled || !info.CalicoInstalled || !util.CompareVersions(info.CalicoVersion, "3.30.0")
+	if canInstall {
+		list.AddItem("Install/Upgrade Calico Operator v3.30", "Install or upgrade Calico operator", 'i', func() {
+			fa.installCalicoOperator(ctx)
+		})
+	}
+
+	applyTheme(list)
+
+	// Create a centered layout
+	mainFlex := tview.NewFlex().SetDirection(tview.FlexRow)
+
+	// Add flexible space above (to center vertically)
+	mainFlex.AddItem(nil, 0, 1, false)
+
+	// Add horizontal centering flex
+	horizontalFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
+	horizontalFlex.AddItem(nil, 0, 1, false)  // Left padding
+	horizontalFlex.AddItem(list, 80, 0, true) // Centered menu with fixed width
+	horizontalFlex.AddItem(nil, 0, 1, false)  // Right padding
+
+	mainFlex.AddItem(horizontalFlex, 0, 2, true) // Menu area (takes 2/3 of available space)
+
+	// Add flexible space below (to center vertically)
+	mainFlex.AddItem(nil, 0, 1, false)
+
+	applyTheme(mainFlex)
+	return mainFlex
+}
+
+func (fa *FlowApp) showNetworkInfoModal(info util.ClusterNetworkingInfo) {
+	text := fmt.Sprintf(
+		"[white]CNI Type: [yellow]%s\n[white]Pod CIDRs: [yellow]%s\n[white]Service CIDRs: [yellow]%s\n[white]Overlay: [yellow]%s\n[white]Encapsulation: [yellow]%s\n",
+		info.CNIType,
+		func() string {
+			if len(info.PodCIDRs) == 0 {
+				return "Not detected"
+			}
+			result := ""
+			for i, cidr := range info.PodCIDRs {
+				if i > 0 {
+					result += ", "
+				}
+				result += cidr
+			}
+			return result
+		}(),
+		func() string {
+			if len(info.ServiceCIDRs) == 0 {
+				return "Not detected"
+			}
+			result := ""
+			for i, cidr := range info.ServiceCIDRs {
+				if i > 0 {
+					result += ", "
+				}
+				result += cidr
+			}
+			return result
+		}(),
+		func() string {
+			if info.Overlay == "" {
+				return "Not detected"
+			}
+			return info.Overlay
+		}(),
+		func() string {
+			if info.Encapsulation == "" {
+				return "Not detected"
+			}
+			return info.Encapsulation
+		}(),
+	)
+
+	if len(info.Errors) > 0 {
+		text += "[red]Errors: "
+		for i, err := range info.Errors {
+			if i > 0 {
+				text += "; "
+			}
+			text += err
+		}
+		text += "\n"
+	}
+
+	modal := tview.NewModal().
+		SetText(text).
+		AddButtons([]string{"OK"}).
+		SetDoneFunc(func(_ int, _ string) {
+			fa.pages.RemovePage("networkInfo")
+		})
+	fa.pages.AddPage("networkInfo", modal, true, true)
+}
+
+func (fa *FlowApp) showCalicoInfoModal(info util.ClusterNetworkingInfo) {
+	text := fmt.Sprintf(
+		"[white]Calico Installed: [yellow]%v\n[white]Calico Version: [yellow]%s\n[white]Operator Installed: [yellow]%v\n[white]Operator Version: [yellow]%s\n[white]Whisker Available: [yellow]%v\n",
+		info.CalicoInstalled,
+		func() string {
+			if info.CalicoVersion == "" {
+				return "Not detected"
+			}
+			return info.CalicoVersion
+		}(),
+		info.OperatorInstalled,
+		func() string {
+			if info.OperatorVersion == "" {
+				return "Not detected"
+			}
+			return info.OperatorVersion
+		}(),
+		info.WhiskerAvailable,
+	)
+
+	modal := tview.NewModal().
+		SetText(text).
+		AddButtons([]string{"OK"}).
+		SetDoneFunc(func(_ int, _ string) {
+			fa.pages.RemovePage("calicoInfo")
+		})
+	fa.pages.AddPage("calicoInfo", modal, true, true)
+}
+
+func (fa *FlowApp) installCalicoOperator(ctx context.Context) {
+	go func() {
+		err := util.InstallCalicoOperator(ctx)
+		fa.app.QueueUpdateDraw(func() {
+			modal := tview.NewModal().SetText("Calico operator install: " + func() string {
+				if err != nil {
+					return "Failed: " + err.Error()
+				}
+				return "Success!"
+			}()).AddButtons([]string{"OK"}).SetDoneFunc(func(_ int, _ string) {
+				fa.pages.RemovePage("installResult")
+			})
+			fa.pages.AddPage("installResult", modal, true, true)
+		})
+	}()
 }
