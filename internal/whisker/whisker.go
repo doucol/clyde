@@ -163,7 +163,8 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	}
 
 	if _, err := util.ChanWaitTimeout(sseReady, 2, whiskerReady); err != nil {
-		logrus.WithError(err).Panic("error waiting for sse consumer to be ready")
+		flowApp.Stop()
+		return err
 	} else {
 		logrus.Debug("Whisker is running and waiting for an exit signal")
 	}

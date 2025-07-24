@@ -199,6 +199,7 @@ func (dc *DataCatcher) consumeSSEStream(ctx context.Context, url string, stopCha
 		util.ChanClose(scanDone)
 		scanDone = make(chan bool, 1)
 		go func() {
+			defer dc.recoverFunc()
 			scanDone <- scanner.Scan()
 		}()
 
