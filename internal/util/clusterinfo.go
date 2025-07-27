@@ -247,11 +247,11 @@ func InstallCalicoOperator(ctx context.Context, clientset kubernetes.Interface, 
 	}
 	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latest))
 	if err != nil {
-		return fmt.Errorf("failed to install Calico operator: %w", err)
+		return fmt.Errorf("failed to install Calico %s: %w", latest, err)
 	}
 	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latest))
 	if err != nil {
-		return fmt.Errorf("failed to install Calico custom resources: %w", err)
+		return fmt.Errorf("failed to install Calico %s custom resources: %w", latest, err)
 	}
 	return nil
 }

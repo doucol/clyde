@@ -86,7 +86,7 @@ func (a *Applier) ApplyURLWithTimeout(ctx context.Context, url string, timeout t
 	}
 
 	// Set User-Agent to identify the client
-	req.Header.Set("User-Agent", "k8sapply/1.0")
+	req.Header.Set("User-Agent", "clyde-k8sapply/1.0")
 
 	// Make the request
 	resp, err := client.Do(req)
@@ -177,15 +177,20 @@ func (a *Applier) applyResource(ctx context.Context, obj *unstructured.Unstructu
 func (a *Applier) findGVRForGVK(gvk schema.GroupVersionKind) (schema.GroupVersionResource, error) {
 	for _, apiResourceList := range a.resources {
 		for _, apiResource := range apiResourceList.APIResources {
-			if apiResource.Group == gvk.Group && apiResource.Version == gvk.Version && apiResource.Kind == gvk.Kind {
+			// log.Printf("API resource: %+v", apiResource)
+			version := apiResource.Version
+			if version == "" {
+				version = "v1"
+			}
+			if apiResource.Group == gvk.Group && version == gvk.Version && apiResource.Kind == gvk.Kind {
 				return schema.GroupVersionResource{
 					Group:    apiResource.Group,
-					Version:  apiResource.Version,
+					Version:  version,
 					Resource: apiResource.Name,
 				}, nil
 			}
 		}
 	}
 
-	return schema.GroupVersionResource{}, fmt.Errorf("kind %s not found", gvk.Kind)
+	return schema.GroupVersionResource{}, fmt.Errorf("gvk not found: %s | %s | %s", gvk.Group, gvk.Version, gvk.Kind)
 }
