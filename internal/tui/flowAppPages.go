@@ -357,7 +357,10 @@ func (fa *FlowApp) showCalicoInfoModal(info util.ClusterNetworkingInfo) {
 
 func (fa *FlowApp) installCalicoOperator(ctx context.Context) {
 	go func() {
-		err := util.InstallCalicoOperator(ctx)
+		cc := cmdctx.CmdCtxFromContext(ctx)
+		kc := cc.Clientset()
+		dc := cc.ClientDyn()
+		err := util.InstallCalicoOperator(ctx, kc, dc)
 		fa.app.QueueUpdateDraw(func() {
 			modal := tview.NewModal().SetText("Calico operator install: " + func() string {
 				if err != nil {

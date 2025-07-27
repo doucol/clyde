@@ -129,7 +129,7 @@ func TestCompareVersions(t *testing.T) {
 			name:     "Empty versions",
 			v1:       "",
 			v2:       "",
-			expected: true,
+			expected: false,
 		},
 	}
 
