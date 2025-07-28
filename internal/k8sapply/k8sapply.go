@@ -254,12 +254,3 @@ func (a *Applier) findAPIResourceForGVK(gvk schema.GroupVersionKind) (*metav1.AP
 
 	return nil, fmt.Errorf("api resource not found: GVK: %s | %s | %s", gvk.Group, gvk.Version, gvk.Kind)
 }
-
-// buildGVRFromAPIResource constructs a GroupVersionResource from GVK and APIResource
-func (a *Applier) buildGVRFromAPIResource(apiResource *metav1.APIResource) schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    apiResource.Group,
-		Version:  apiResource.Version,
-		Resource: apiResource.Name,
-	}
-}
