@@ -7,276 +7,69 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/doucol/clyde/internal/githubversions"
+	"github.com/doucol/clyde/internal/k8sapply"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // CalicoManager provides comprehensive Calico OSS management capabilities
 type CalicoManager struct {
 	clientset kubernetes.Interface
 	dynamic   dynamic.Interface
-	config    *rest.Config
 	logger    io.Writer
+	events    chan string
 }
 
 // NewCalicoManager creates a new CalicoManager instance
-func NewCalicoManager(clientset kubernetes.Interface, dynamicClient dynamic.Interface, config *rest.Config, logger io.Writer) *CalicoManager {
+func NewCalicoManager(clientset kubernetes.Interface, dynamicClient dynamic.Interface, logger io.Writer) *CalicoManager {
 	return &CalicoManager{
 		clientset: clientset,
 		dynamic:   dynamicClient,
-		config:    config,
 		logger:    logger,
+		events:    nil,
 	}
 }
 
 // Logf logs formatted messages to the logger
 func (cm *CalicoManager) Logf(format string, args ...any) {
-	if cm.logger != nil {
-		_, _ = fmt.Fprintf(cm.logger, format+"\n", args...)
+	if len(format) > 0 {
+		cm.Log(fmt.Sprintf(format, args...))
 	}
 }
 
-// InstallOptions contains options for Calico installation
-type InstallOptions struct {
-	Version          string
-	InstallationType string // "operator", "manifest"
-	CNI              string // "calico", "flannel", "none"
-	IPAM             string // "calico-ipam", "host-local"
-	Datastore        string // "kubernetes", "etcd"
-	FelixLogSeverity string
-	TyphaLogSeverity string
-	OperatorLogLevel string
-	EnablePrometheus bool
-	EnableTigera     bool
-	CustomManifests  []string
-	CustomConfig     map[string]interface{}
+func (cm *CalicoManager) Log(message string) {
+	if len(message) == 0 {
+		return
+	}
+	if cm.events != nil {
+		cm.events <- message
+	}
+	if cm.logger != nil {
+		_, _ = fmt.Fprint(cm.logger, message+"\n")
+	}
 }
 
-// UpgradeOptions contains options for Calico upgrade
-type UpgradeOptions struct {
-	Version              string
-	BackupBeforeUpgrade  bool
-	ValidateAfterUpgrade bool
-}
-
-// UninstallOptions contains options for Calico uninstallation
-type UninstallOptions struct {
-	RemoveCRDs       bool
-	RemoveNamespace  bool
-	RemoveFinalizers bool
-}
-
-// CalicoStatus represents the status of Calico installation
-type CalicoStatus struct {
-	Installed       bool
-	Version         string
-	Components      map[string]ComponentStatus
-	Nodes           []NodeStatus
-	IPPools         []IPPoolStatus
-	BGPPeers        []BGPPeerStatus
-	NetworkPolicies []PolicyStatus
-	LastUpdated     time.Time
-}
-
-// ComponentStatus represents the status of a Calico component
-type ComponentStatus struct {
-	Name    string
-	Healthy bool
-	Ready   bool
-	Message string
-	Version string
-}
-
-// NodeStatus represents the status of a Calico node
-type NodeStatus struct {
-	Name  string
-	Ready bool
-	BGP   bool
-	Felix bool
-	Typha bool
-	IP    string
-	ASN   int
-}
-
-// IPPoolStatus represents the status of an IP pool
-type IPPoolStatus struct {
-	Name      string
-	CIDR      string
-	BlockSize int
-	IPIP      bool
-	VXLAN     bool
-	Disabled  bool
-}
-
-// BGPPeerStatus represents the status of a BGP peer
-type BGPPeerStatus struct {
-	Name   string
-	ASN    int
-	IP     string
-	State  string
-	Uptime time.Duration
-}
-
-// PolicyStatus represents the status of a network policy
-type PolicyStatus struct {
-	Name      string
-	Namespace string
-	Type      string
-	Applied   bool
-}
-
-// IPPool represents a Calico IP pool
-type IPPool struct {
-	Name        string
-	CIDR        string
-	BlockSize   int
-	IPIPMode    string // "Always", "CrossSubnet", "Never"
-	VXLANMode   string // "Always", "CrossSubnet", "Never"
-	Disabled    bool
-	Annotations map[string]string
-}
-
-// NetworkPolicy represents a Calico network policy
-type NetworkPolicy struct {
-	Name         string
-	Namespace    string
-	Selector     string
-	IngressRules []Rule
-	EgressRules  []Rule
-	Types        []string // "Ingress", "Egress"
-	Annotations  map[string]string
-}
-
-// Rule represents a network policy rule
-type Rule struct {
-	Action      string // "Allow", "Deny", "Log"
-	Protocol    string
-	Source      RuleEndpoint
-	Destination RuleEndpoint
-	HTTP        *HTTPMatch
-	ICMP        *ICMPMatch
-}
-
-// RuleEndpoint represents a rule endpoint
-type RuleEndpoint struct {
-	Nets        []string
-	NotNets     []string
-	Selector    string
-	NotSelector string
-	Ports       []Port
-	NotPorts    []Port
-}
-
-// Port represents a port specification
-type Port struct {
-	Number   int
-	Protocol string
-	EndPort  int
-}
-
-// HTTPMatch represents HTTP match criteria
-type HTTPMatch struct {
-	Methods []string
-	Paths   []string
-	Headers map[string]string
-}
-
-// ICMPMatch represents ICMP match criteria
-type ICMPMatch struct {
-	Type int
-	Code int
-}
-
-// BGPPeer represents a BGP peer
-type BGPPeer struct {
-	Name         string
-	ASN          int
-	IP           string
-	NodeSelector string
-	Password     string
-	Annotations  map[string]string
-}
-
-// HealthCheckResult represents the result of a health check
-type HealthCheckResult struct {
-	Overall     bool
-	Components  map[string]bool
-	Nodes       map[string]bool
-	BGP         map[string]bool
-	LastChecked time.Time
-	Errors      []string
-}
-
-// FelixConfiguration represents Felix configuration
-type FelixConfiguration struct {
-	Name                            string
-	LogSeverityScreen               string
-	LogSeverityFile                 string
-	LogSeveritySys                  string
-	PrometheusMetricsEnabled        bool
-	PrometheusMetricsPort           int
-	PrometheusGoMetricsEnabled      bool
-	PrometheusProcessMetricsEnabled bool
-}
-
-// BGPConfiguration represents BGP configuration
-type BGPConfiguration struct {
-	Name                   string
-	ASNumber               int
-	ServiceClusterIPs      []string
-	ServiceExternalIPs     []string
-	ServiceLoadBalancerIPs []string
-}
-
-// ClusterInformation represents cluster information
-type ClusterInformation struct {
-	Name          string
-	CalicoVersion string
-	ClusterType   string
-	DatastoreType string
-}
-
-// GlobalNetworkSet represents a global network set
-type GlobalNetworkSet struct {
-	Name        string
-	Nets        []string
-	Labels      map[string]string
-	Annotations map[string]string
-}
-
-// HostEndpoint represents a host endpoint
-type HostEndpoint struct {
-	Name        string
-	Node        string
-	Interface   string
-	ExpectedIPs []string
-	Profiles    []string
-	Labels      map[string]string
-	Annotations map[string]string
-}
-
-// WorkloadEndpoint represents a workload endpoint
-type WorkloadEndpoint struct {
-	Name        string
-	Namespace   string
-	Pod         string
-	Container   string
-	Interface   string
-	ExpectedIPs []string
-	Profiles    []string
-	Labels      map[string]string
-	Annotations map[string]string
+func (cm *CalicoManager) Events() chan string {
+	if cm.events == nil {
+		cm.events = make(chan string, 100) // Buffered channel for events
+	}
+	return cm.events
 }
 
 // Install installs Calico using the operator-based installation method
 func (cm *CalicoManager) Install(ctx context.Context, options *InstallOptions) error {
+	if options == nil {
+		return fmt.Errorf("install options cannot be nil")
+	}
+
 	cm.Logf("Installing Calico version %s", options.Version)
 
 	// Install Calico operator first
@@ -297,19 +90,55 @@ func (cm *CalicoManager) Install(ctx context.Context, options *InstallOptions) e
 func (cm *CalicoManager) installOperator(ctx context.Context, options *InstallOptions) error {
 	cm.Logf("Installing Calico operator...")
 
-	// Apply operator manifests
-	operatorManifests := cm.generateOperatorManifests(options)
-	for _, manifest := range operatorManifests {
-		if err := cm.applyManifest(ctx, manifest); err != nil {
-			return fmt.Errorf("failed to apply operator manifest: %w", err)
-		}
+	var err error
+	var latestVersion string
+	if latestVersion, err = githubversions.GetLatestStableSemverTag(ctx, "projectcalico", "calico"); err != nil {
+		return err
 	}
+
+	applier, err := k8sapply.NewApplier(cm.clientset, cm.dynamic, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create applier: %w", err)
+	}
+
+	eventChan := applier.Events()
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer applier.Close()
+		murl := fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latestVersion)
+		if err := applier.ApplyURL(ctx, murl); err != nil {
+			cm.Logf("Failed to apply Calico operator manifest: %v", err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				err := fmt.Errorf("context cancelled while installing Calico operator: %w", ctx.Err())
+				cm.Log(err.Error())
+				return
+			case msg, ok := <-eventChan:
+				cm.Log(msg)
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
 
 	// Wait for operator to be ready
 	if err := cm.waitForOperatorReady(ctx); err != nil {
 		return fmt.Errorf("operator failed to become ready: %w", err)
 	}
 
+	wg.Wait()
 	cm.Logf("Calico operator installed successfully")
 	return nil
 }
@@ -326,7 +155,7 @@ func (cm *CalicoManager) installCalicoInstance(ctx context.Context, options *Ins
 
 	// Wait for Calico to be ready
 	if err := cm.waitForCalicoReady(ctx); err != nil {
-		return fmt.Errorf("Calico failed to become ready: %w", err)
+		return fmt.Errorf("calico failed to become ready: %w", err)
 	}
 
 	cm.Logf("Calico instance installed successfully")
@@ -335,6 +164,10 @@ func (cm *CalicoManager) installCalicoInstance(ctx context.Context, options *Ins
 
 // Upgrade upgrades Calico to a new version
 func (cm *CalicoManager) Upgrade(ctx context.Context, options *UpgradeOptions) error {
+	if options == nil {
+		return fmt.Errorf("upgrade options cannot be nil")
+	}
+
 	cm.Logf("Upgrading Calico to version %s", options.Version)
 
 	// Backup current configuration if requested
@@ -367,6 +200,10 @@ func (cm *CalicoManager) Upgrade(ctx context.Context, options *UpgradeOptions) e
 
 // Uninstall uninstalls Calico
 func (cm *CalicoManager) Uninstall(ctx context.Context, options *UninstallOptions) error {
+	if options == nil {
+		return fmt.Errorf("uninstall options cannot be nil")
+	}
+
 	cm.Logf("Uninstalling Calico...")
 
 	// Delete Calico instance
@@ -466,7 +303,7 @@ func (cm *CalicoManager) GetIPPools(ctx context.Context) ([]*IPPool, error) {
 
 	var ippools []*IPPool
 	for _, item := range list.Items {
-		spec := item.Object["spec"].(map[string]interface{})
+		spec := item.Object["spec"].(map[string]any)
 
 		ippool := &IPPool{
 			Name:      item.GetName(),
@@ -536,17 +373,17 @@ func (cm *CalicoManager) GetNetworkPolicies(ctx context.Context, namespace strin
 
 	var policies []*NetworkPolicy
 	for _, item := range list.Items {
-		spec := item.Object["spec"].(map[string]interface{})
+		spec := item.Object["spec"].(map[string]any)
 
 		policy := &NetworkPolicy{
 			Name:      item.GetName(),
 			Namespace: item.GetNamespace(),
 		}
 
-		if ingress, ok := spec["ingress"].([]interface{}); ok {
+		if ingress, ok := spec["ingress"].([]any); ok {
 			policy.IngressRules = cm.parseRules(ingress)
 		}
-		if egress, ok := spec["egress"].([]interface{}); ok {
+		if egress, ok := spec["egress"].([]any); ok {
 			policy.EgressRules = cm.parseRules(egress)
 		}
 
@@ -605,7 +442,7 @@ func (cm *CalicoManager) GetBGPPeers(ctx context.Context) ([]*BGPPeer, error) {
 
 	var peers []*BGPPeer
 	for _, item := range list.Items {
-		spec := item.Object["spec"].(map[string]interface{})
+		spec := item.Object["spec"].(map[string]any)
 
 		peer := &BGPPeer{
 			Name: item.GetName(),
@@ -846,7 +683,7 @@ func (cm *CalicoManager) getPolicyStatuses(ctx context.Context, status *CalicoSt
 	return nil
 }
 
-func (cm *CalicoManager) parseRules(rules []interface{}) []Rule {
+func (cm *CalicoManager) parseRules(rules []any) []Rule {
 	// Implementation would parse rules
 	return []Rule{}
 }

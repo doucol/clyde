@@ -188,8 +188,7 @@ func (fa *FlowApp) viewHomePage(ctx context.Context) tview.Primitive {
 	cc := cmdctx.CmdCtxFromContext(ctx)
 	clientset := cc.Clientset()
 	dyn := cc.ClientDyn()
-	restConfig := cc.GetK8sConfig()
-	info := util.GetClusterNetworkingInfo(ctx, clientset, dyn, restConfig)
+	info := util.GetClusterNetworkingInfo(ctx, clientset, dyn)
 
 	list := tview.NewList()
 	list.SetBorder(true).SetTitle("Clyde - Main Menu")
@@ -208,7 +207,7 @@ func (fa *FlowApp) viewHomePage(ctx context.Context) tview.Primitive {
 
 	// Option 3 & 4: Flow pages (if Calico v3.30+ and whisker available)
 	canShowFlows := info.CalicoInstalled && info.OperatorInstalled &&
-		util.CompareVersions(info.CalicoVersion, "3.30.0") && info.WhiskerAvailable
+		util.SemverGreaterThanOrEqual(info.CalicoVersion, "3.30.0") && info.WhiskerAvailable
 
 	if canShowFlows {
 		list.AddItem("Flow Sum Totals", "View flow summary totals", '3', func() {
@@ -232,10 +231,10 @@ func (fa *FlowApp) viewHomePage(ctx context.Context) tview.Primitive {
 	})
 
 	// Add installation option if needed
-	canInstall := !info.OperatorInstalled || !info.CalicoInstalled || !util.CompareVersions(info.CalicoVersion, "3.30.0")
+	canInstall := !info.OperatorInstalled || !info.CalicoInstalled || !util.SemverGreaterThanOrEqual(info.CalicoVersion, "3.30.0")
 	if canInstall {
 		list.AddItem("Install/Upgrade Calico Operator v3.30 (WARNING: experimental!)", "Install or upgrade Calico operator", 'i', func() {
-			fa.installCalicoOperator(ctx)
+			fa.installCalico(ctx)
 		})
 	}
 
@@ -355,22 +354,23 @@ func (fa *FlowApp) showCalicoInfoModal(info util.ClusterNetworkingInfo) {
 	fa.pages.AddPage("calicoInfo", modal, true, true)
 }
 
-func (fa *FlowApp) installCalicoOperator(ctx context.Context) {
+func (fa *FlowApp) installCalico(ctx context.Context) {
 	go func() {
 		cc := cmdctx.CmdCtxFromContext(ctx)
 		kc := cc.Clientset()
 		dc := cc.ClientDyn()
-		err := util.InstallCalicoOperator(ctx, kc, dc)
-		fa.app.QueueUpdateDraw(func() {
-			modal := tview.NewModal().SetText("Calico operator install: " + func() string {
-				if err != nil {
-					return "Failed: " + err.Error()
-				}
-				return "Success!"
-			}()).AddButtons([]string{"OK"}).SetDoneFunc(func(_ int, _ string) {
-				fa.pages.RemovePage("installResult")
-			})
-			fa.pages.AddPage("installResult", modal, true, true)
-		})
+
+		// err := util.InstallCalico(ctx, kc, dc)
+		// fa.app.QueueUpdateDraw(func() {
+		// 	modal := tview.NewModal().SetText("Calico operator install: " + func() string {
+		// 		if err != nil {
+		// 			return "Failed: " + err.Error()
+		// 		}
+		// 		return "Success!"
+		// 	}()).AddButtons([]string{"OK"}).SetDoneFunc(func(_ int, _ string) {
+		// 		fa.pages.RemovePage("installResult")
+		// 	})
+		// 	fa.pages.AddPage("installResult", modal, true, true)
+		// })
 	}()
 }

@@ -24,6 +24,7 @@ type Applier struct {
 	clientset kubernetes.Interface
 	dynamic   dynamic.Interface
 	logger    io.Writer
+	events    chan string
 	resources []*metav1.APIResourceList
 }
 
@@ -39,8 +40,23 @@ func NewApplier(clientset kubernetes.Interface, dynamicClient dynamic.Interface,
 		clientset: clientset,
 		dynamic:   dynamicClient,
 		logger:    logger,
+		events:    nil,
 		resources: apiResourceLists,
 	}, nil
+}
+
+func (a *Applier) Events() chan string {
+	if a.events == nil {
+		a.events = make(chan string, 100) // Buffered channel to avoid blocking
+	}
+	return a.events
+}
+
+func (a *Applier) Close() {
+	if a.events != nil {
+		close(a.events)
+		a.events = nil
+	}
 }
 
 func getAPIResources(clientset kubernetes.Interface) ([]*metav1.APIResourceList, error) {
@@ -66,6 +82,9 @@ func getAPIResources(clientset kubernetes.Interface) ([]*metav1.APIResourceList,
 func (a *Applier) Logf(format string, args ...any) {
 	if a.logger != nil {
 		_, _ = fmt.Fprintf(a.logger, format+"\n", args...)
+	}
+	if a.events != nil {
+		a.events <- fmt.Sprintf(format, args...)
 	}
 }
 

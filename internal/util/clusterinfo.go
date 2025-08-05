@@ -2,20 +2,15 @@ package util
 
 import (
 	context "context"
-	"errors"
-	fmt "fmt"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/doucol/clyde/internal/githubversions"
-	"github.com/doucol/clyde/internal/k8sapply"
 	"golang.org/x/mod/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // ClusterNetworkingInfo holds metadata about the cluster's networking
@@ -213,8 +208,8 @@ func parseImageVersion(image string) string {
 	return ""
 }
 
-// CompareVersions returns true if v1 >= v2 (semantic versioning)
-func CompareVersions(v1, v2 string) bool {
+// SemverGreaterThanOrEqual returns true if v1 >= v2 (semantic versioning)
+func SemverGreaterThanOrEqual(v1, v2 string) bool {
 	if !strings.HasPrefix(v1, "v") {
 		v1 = "v" + v1
 	}
@@ -231,30 +226,30 @@ func CompareVersions(v1, v2 string) bool {
 	return false
 }
 
-func InstallCalicoOperator(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface) error {
-	var err error
-	var latest string
-	var applier *k8sapply.Applier
-	if latest, err = githubversions.GetLatestStableSemverTag(ctx, "projectcalico", "calico"); err != nil || len(latest) == 0 {
-		if err != nil {
-			return err
-		}
-		return errors.New("failed to fetch latest Calico version - calico version is empty")
-	}
-	applier, err = k8sapply.NewApplier(clientset, dyn, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create k8sapplier: %w", err)
-	}
-	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latest))
-	if err != nil {
-		return fmt.Errorf("failed to install Calico %s: %w", latest, err)
-	}
-	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latest))
-	if err != nil {
-		return fmt.Errorf("failed to install Calico %s custom resources: %w", latest, err)
-	}
-	return nil
-}
+// func InstallCalico(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface) error {
+// 	var err error
+// 	var latest string
+// 	var applier *k8sapply.Applier
+// 	if latest, err = githubversions.GetLatestStableSemverTag(ctx, "projectcalico", "calico"); err != nil || len(latest) == 0 {
+// 		if err != nil {
+// 			return err
+// 		}
+// 		return errors.New("failed to fetch latest Calico version - calico version is empty")
+// 	}
+// 	applier, err = k8sapply.NewApplier(clientset, dyn, nil)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create k8sapplier: %w", err)
+// 	}
+// 	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latest))
+// 	if err != nil {
+// 		return fmt.Errorf("failed to install Calico %s: %w", latest, err)
+// 	}
+// 	err = applier.ApplyURL(ctx, fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latest))
+// 	if err != nil {
+// 		return fmt.Errorf("failed to install Calico %s custom resources: %w", latest, err)
+// 	}
+// 	return nil
+// }
 
 // GetPodCIDRs tries to fetch pod CIDRs from kubeadm-config ConfigMap and/or Calico IPPool CRDs
 func GetPodCIDRs(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface) ([]string, error) {
@@ -276,7 +271,7 @@ func GetPodCIDRs(ctx context.Context, clientset kubernetes.Interface, dyn dynami
 		ippools, err := dyn.Resource(gvr).List(ctx, metav1.ListOptions{})
 		if err == nil {
 			for _, item := range ippools.Items {
-				if spec, ok := item.Object["spec"].(map[string]interface{}); ok {
+				if spec, ok := item.Object["spec"].(map[string]any); ok {
 					if cidr, ok := spec["cidr"].(string); ok {
 						cidrs = append(cidrs, cidr)
 					}
@@ -357,7 +352,7 @@ func GetWhiskerAvailability(ctx context.Context, clientset kubernetes.Interface,
 }
 
 // GetClusterNetworkingInfo gathers all cluster networking information
-func GetClusterNetworkingInfo(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface, restConfig *rest.Config) ClusterNetworkingInfo {
+func GetClusterNetworkingInfo(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface) ClusterNetworkingInfo {
 	info := ClusterNetworkingInfo{
 		CalicoNamespace:  "calico-system",
 		CalicoOperatorNS: "calico-system",
