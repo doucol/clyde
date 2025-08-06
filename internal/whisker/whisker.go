@@ -163,8 +163,15 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	}
 
 	if _, err := util.ChanWaitTimeout(sseReady, 2, whiskerReady); err != nil {
-		flowApp.Stop()
-		return err
+		go func() {
+			select {
+			case <-sseReady:
+				util.ChanClose(whiskerReady)
+			case <-ctx.Done():
+				return
+			}
+		}()
+		logrus.Debug("Whisker is running and waiting for an exit signal. However, data is not flowing. Is this a Calico 3.30+ cluster with whisker enabled?")
 	} else {
 		logrus.Debug("Whisker is running and waiting for an exit signal")
 	}
