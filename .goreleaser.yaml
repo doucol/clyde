@@ -103,16 +103,9 @@ homebrew_casks:
     license: "Apache-2.0"
     skip_upload: auto
     directory: Casks
-    url:
-      using: ":homebrew_curl"
 
-    # download_strategy: CurlDownloadStrategy
-    #
-    # install: |
-    #   bin.install "{{.ProjectName}}"
-    #
-    # test: |
-    #   assert_match "v{{.Version}}", shell_output("#{bin}/{{.ProjectName}} version")
+    conflicts:
+      - formula: clyde
 
     hooks:
       post:
