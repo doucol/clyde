@@ -96,20 +96,30 @@ announce:
   skip: true
 
 # Homebrew tap configuration
-brews:
+homebrew_casks:
   - name: "{{.ProjectName}}"
     homepage: "https://{{.Env.SRC}}/"
     description: "Terminal-based UI for monitoring Project Calico network flows in real-time"
     license: "Apache-2.0"
     skip_upload: auto
-    directory: Formula
-    download_strategy: CurlDownloadStrategy
+    directory: Casks
+    url:
+      using: ":homebrew_curl"
 
-    install: |
-      bin.install "{{.ProjectName}}"
+    # download_strategy: CurlDownloadStrategy
+    #
+    # install: |
+    #   bin.install "{{.ProjectName}}"
+    #
+    # test: |
+    #   assert_match "v{{.Version}}", shell_output("#{bin}/{{.ProjectName}} version")
 
-    test: |
-      assert_match "v{{.Version}}", shell_output("#{bin}/{{.ProjectName}} version")
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/clyde"]
+          end
 
     repository:
       owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
