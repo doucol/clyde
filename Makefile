@@ -6,7 +6,7 @@ else
   DATE := $(shell date -u -d @${SEC} +"%Y-%m-%dT%H:%M:%SZ")
 endif
 
-NEXT ?= v0.3
+NEXT ?= v0.5
 
 APP := clyde
 OUT ?= bin/$(APP)
