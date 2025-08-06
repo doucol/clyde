@@ -234,7 +234,7 @@ func (fa *FlowApp) viewHomePage(ctx context.Context) tview.Primitive {
 	// Add installation option if needed
 	canInstall := !info.OperatorInstalled || !info.CalicoInstalled || !util.CompareVersions(info.CalicoVersion, "3.30.0")
 	if canInstall {
-		list.AddItem("Install/Upgrade Calico Operator v3.30", "Install or upgrade Calico operator", 'i', func() {
+		list.AddItem("Install/Upgrade Calico Operator v3.30 (WARNING: experimental!)", "Install or upgrade Calico operator", 'i', func() {
 			fa.installCalicoOperator(ctx)
 		})
 	}
