@@ -110,7 +110,8 @@ homebrew_casks:
     hooks:
       post:
         install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+          cmd = system_command("/usr/bin/xattr", args: ["-h"], must_succeed: false, print_stdout: false, print_stderr: false) rescue nil
+          if cmd && cmd.exit_status == 0
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/clyde"]
           end
 
