@@ -42,13 +42,14 @@ builds:
 archives:
   - formats: [tar.gz]
     # this name template makes the OS and Arch compatible with the results of `uname`.
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # name_template: >-
+    #   {{ .ProjectName }}_
+    #   {{- title .Os }}_
+    #   {{- if eq .Arch "amd64" }}x86_64
+    #   {{- else if eq .Arch "386" }}i386
+    #   {{- else }}{{ .Arch }}{{ end }}
+    #   {{- if .Arm }}v{{ .Arm }}{{ end }}
+
     # use zip for windows archives
     format_overrides:
       - goos: windows
@@ -94,37 +95,37 @@ release:
 # https://goreleaser.com/customization/announce/
 announce:
   skip: true
-
+#
 # Homebrew tap configuration
-homebrew_casks:
-  - name: "{{.ProjectName}}"
-    homepage: "https://{{.Env.SRC}}/"
-    description: "Terminal-based UI for monitoring Project Calico network flows in real-time"
-    license: "Apache-2.0"
-    skip_upload: auto
-    directory: Casks
-
-    conflicts:
-      - formula: clyde
-
-    hooks:
-      post:
-        install: |
-          cmd = system_command("/usr/bin/xattr", args: ["-h"], must_succeed: false, print_stdout: false, print_stderr: false) rescue nil
-          if cmd && cmd.exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/clyde"]
-          end
-
-    repository:
-      owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
-      name: homebrew-tap
-      branch: main
-      token: "{{.Env.GITHUB_TOKEN}}"
-
-    # Commit author
-    commit_author:
-      name: GoReleaser Bot
-      email: bot@goreleaser.com
-
-    # Custom commit message
-    commit_msg_template: "Brew formula update for {{.ProjectName}} version {{.Version}}"
+# homebrew_casks:
+#   - name: "{{.ProjectName}}"
+#     homepage: "https://{{.Env.SRC}}/"
+#     description: "Terminal-based UI for monitoring Project Calico network flows in real-time"
+#     license: "Apache-2.0"
+#     skip_upload: auto
+#     directory: Casks
+#
+#     conflicts:
+#       - formula: clyde
+#
+#     hooks:
+#       post:
+#         install: |
+#           cmd = system_command("/usr/bin/xattr", args: ["-h"], must_succeed: false, print_stdout: false, print_stderr: false) rescue nil
+#           if cmd && cmd.exit_status == 0
+#             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/clyde"]
+#           end
+#
+#     repository:
+#       owner: "{{.Env.GITHUB_REPOSITORY_OWNER}}"
+#       name: homebrew-tap
+#       branch: main
+#       token: "{{.Env.GITHUB_TOKEN}}"
+#
+#     # Commit author
+#     commit_author:
+#       name: GoReleaser Bot
+#       email: bot@goreleaser.com
+#
+#     # Custom commit message
+#     commit_msg_template: "Brew formula update for {{.ProjectName}} version {{.Version}}"
