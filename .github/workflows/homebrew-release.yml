@@ -32,11 +32,11 @@ jobs:
 
           # Install command for your formula.
           # Required - string
-          install: "bin.install {{ .ProjectName }}"
+          install: "bin.install ${{ github.event.repository.name }}"
 
           # Test command for your formula, used for `brew test`.
           # Optional - string
-          test: 'assert_match("v{{.Version}}", shell_output("{{.ProjectName}} version"))'
+          test: 'assert_match("v${{ github.ref_name }}", shell_output("${{ github.event.repository.name }} version"))'
 
           # Custom dependencies in case other formulas are needed to build the current one.
           # Optional - multiline string
@@ -95,7 +95,7 @@ jobs:
 
           # Skips committing the generated formula to a homebrew tap (useful to verify results on a first run).
           # Default is shown - boolean
-          skip_commit: true
+          skip_commit: false
 
           # Logs debugging info to console.
           # Default is shown - boolean
