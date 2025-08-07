@@ -23,7 +23,7 @@ jobs:
           # Optional, use the origin repository instead of forking
           no_fork: false
           # Optional, defaults to homebrew/core
-          tap: doucol/homebrew-tap
+          tap: doucol/tap
           # Formula name, required
           formula: clyde
           # Optional, will be determined automatically
