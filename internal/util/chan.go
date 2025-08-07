@@ -6,10 +6,10 @@ import (
 )
 
 func ChanSendEmpty[T any](ch chan T, count int) {
-	for range count {
-		var val T
-		ch <- val
-	}
+    for i := 0; i < count; i++ {
+        var val T
+        ch <- val
+    }
 }
 
 func ChanSendTimeout[T any](ch chan T, val T, milliseconds int) error {
