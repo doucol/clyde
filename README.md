@@ -39,7 +39,7 @@ To enable filtering, use the `/` key to show the filter attributes.
 ### Homebrew (Mac / Linux)
 
 ```bash
-brew install --cask doucol/tap/clyde
+brew install doucol/tap/clyde
 ```
 
 ### Manual
