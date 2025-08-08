@@ -32,7 +32,7 @@ jobs:
 
           # Install command for your formula.
           # Required - string
-          install: "bin.install ${{ github.event.repository.name }}"
+          install: 'bin.install "${{ github.event.repository.name }}"'
 
           # Test command for your formula, used for `brew test`.
           # Optional - string
@@ -99,4 +99,4 @@ jobs:
 
           # Logs debugging info to console.
           # Default is shown - boolean
-          debug: true
+          debug: false
