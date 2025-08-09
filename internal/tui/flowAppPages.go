@@ -377,7 +377,7 @@ func (fa *FlowApp) installCalico(ctx context.Context) {
 						logrus.Errorf("Failed to install Calico: %v", err)
 					}
 				}()
-				cmdDialog := NewCommandModal(fa.app)
+				cmdDialog := NewStreamViewer(fa.app)
 				cmdDialog.SetTitle(" Installing Calico... ")
 				cmdDialog.SetOnClose(func() {
 					fa.pages.RemovePage("installCalico")
