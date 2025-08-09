@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/doucol/clyde/internal/cmdctx"
@@ -71,11 +70,7 @@ func (cm *CalicoManager) Close() {
 }
 
 // Install installs Calico using the operator-based installation method
-func (cm *CalicoManager) Install(ctx context.Context, options *InstallOptions) error {
-	if options == nil {
-		return fmt.Errorf("install options cannot be nil")
-	}
-
+func (cm *CalicoManager) Install(ctx context.Context) error {
 	latestVersion, err := githubversions.GetLatestStableSemverTag(ctx, "projectcalico", "calico")
 	if err != nil {
 		cm.Logf("[red]Failed to get latest Calico version: %v", err)
@@ -84,10 +79,55 @@ func (cm *CalicoManager) Install(ctx context.Context, options *InstallOptions) e
 
 	cm.Logf("[white]Installing latest Calico version: %s", latestVersion)
 
-	// Install Calico operator first
-	if err := cm.installOperator(ctx, latestVersion, options); err != nil {
+	if err := cm.installOperator(ctx, latestVersion); err != nil {
 		cm.Logf("[red]Failed to install Calico operator: %s", err.Error())
 		return fmt.Errorf("failed to install Calico operator: %w", err)
+	}
+
+	cm.Logf("[green]Calico installation completed successfully!")
+	return nil
+}
+
+func (cm *CalicoManager) applyAndLog(ctx context.Context, applier *k8sapplier.Applier, url string) error {
+	results, err := applier.ApplyFromURL(ctx, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to apply kubernetes resources: %w", err)
+	}
+	error := false
+	for _, result := range results {
+		ns := result.Namespace
+		if ns != "" {
+			ns = ns + "/"
+		}
+		if result.Error != nil {
+			error = true
+			cm.Logf("[red]Error applying %s%s (%s): %v", ns, result.Name, result.Kind, result.Error)
+		} else {
+			cm.Logf("[white]Successfully %s: %s%s (%s)", result.Action, ns, result.Name, result.Kind)
+		}
+	}
+	if error {
+		return fmt.Errorf("some manifests failed to apply")
+	}
+	return nil
+}
+
+// installOperator installs the Calico operator and custom resources
+func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion string) error {
+	cc := cmdctx.CmdCtxFromContext(ctx)
+	cm.Logf("[white]Installing Calico operator...")
+
+	applier, err := k8sapplier.NewApplierWithClients(cm.clientset, cm.dynamic, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create k8s applier: %w", err)
+	}
+	defer applier.Close()
+
+	cm.Logf("[white]Applying Calico operator manifests from version %s", latestVersion)
+	murl := fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latestVersion)
+	if err := cm.applyAndLog(ctx, applier, murl); err != nil {
+		cm.Logf("[red]Failed to install Calico operator: %v", err)
+		return err
 	}
 
 	// Wait for the Calico CRDs to be created by the operator
@@ -96,70 +136,21 @@ func (cm *CalicoManager) Install(ctx context.Context, options *InstallOptions) e
 		return fmt.Errorf("failed to wait for Calico CRDs: %w", err)
 	}
 
-	// Install Calico instance
-	// if err := cm.installCalicoInstance(ctx, options); err != nil {
-	// 	return fmt.Errorf("failed to install Calico instance: %w", err)
-	// }
-
-	cm.Logf("[green]Calico installation completed successfully!")
-	return nil
-}
-
-// installOperator installs the Calico operator
-func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion string, options *InstallOptions) error {
-	cm.Logf("[white]Installing Calico operator...")
-
-	applier, err := k8sapplier.NewApplierWithClients(cm.clientset, cm.dynamic, nil)
+	// Wait for Tigera operator to be ready
+	cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
+	err = WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
 	if err != nil {
-		return fmt.Errorf("failed to create applier: %w", err)
+		cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
+		return err
 	}
 
-	// logChan := applier.LogChan()
+	cm.Logf("[white]Applying Calico custom resources from version %s", latestVersion)
+	murl = fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latestVersion)
+	if err := cm.applyAndLog(ctx, applier, murl); err != nil {
+		cm.Logf("[red]Failed to apply custom resources for Calico operator: %v", err)
+		return err
+	}
 
-	wg := sync.WaitGroup{}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer applier.Close()
-		murl := fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latestVersion)
-		results, err := applier.ApplyFromURL(ctx, murl, nil)
-		if err != nil {
-			cm.Logf("[red]Failed to apply Calico operator: %v", err)
-			return
-		}
-		for _, result := range results {
-			if result.Error != nil {
-				cm.Logf("[red]Error applying %s/%s (%s): %v", result.Namespace, result.Name, result.Kind, result.Error)
-			} else {
-				cm.Logf("[green]Successfully %s: %s/%s (%s)", result.Action, result.Namespace, result.Name, result.Kind)
-			}
-		}
-	}()
-
-	// wg.Add(1)
-	// go func() {
-	// 	defer wg.Done()
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case msg, ok := <-logChan:
-	// 			cm.Log(msg)
-	// 			if !ok {
-	// 				return
-	// 			}
-	// 		}
-	// 	}
-	// }()
-
-	// Wait for operator to be ready
-	// if err := cm.waitForOperatorReady(ctx); err != nil {
-	// 	return fmt.Errorf("operator failed to become ready: %w", err)
-	// }
-
-	wg.Wait()
-	cm.Logf("[green]Calico operator installed successfully")
 	return nil
 }
 

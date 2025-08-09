@@ -373,7 +373,7 @@ func (fa *FlowApp) installCalico(ctx context.Context) {
 							panic(r)
 						}
 					}()
-					if err := cm.Install(ctx, &calico.InstallOptions{}); err != nil {
+					if err := cm.Install(ctx); err != nil {
 						logrus.Errorf("Failed to install Calico: %v", err)
 					}
 				}()
