@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/doucol/clyde/internal/calico"
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/gdamore/tcell/v2"
@@ -355,22 +356,54 @@ func (fa *FlowApp) showCalicoInfoModal(info util.ClusterNetworkingInfo) {
 }
 
 func (fa *FlowApp) installCalico(ctx context.Context) {
-	go func() {
-		cc := cmdctx.CmdCtxFromContext(ctx)
-		kc := cc.Clientset()
-		dc := cc.ClientDyn()
+	confirm := tview.NewModal().
+		SetText("This will install or upgrade Calico to the latest version and may modify existing Calico resources. Proceed?").
+		AddButtons([]string{"Cancel", "Install"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			fa.pages.RemovePage("confirmInstall")
+			if buttonLabel == "Install" {
+				cc := cmdctx.CmdCtxFromContext(ctx)
+				cm := calico.NewCalicoManager(cc.Clientset(), cc.ClientDyn(), nil)
+				logChan := cm.LogChan()
+				go func() {
+					defer cm.Close()
+					defer func() {
+						if r := recover(); r != nil {
+							fa.app.Stop()
+							panic(r)
+						}
+					}()
+					if err := cm.Install(ctx, &calico.InstallOptions{}); err != nil {
+						logrus.Errorf("Failed to install Calico: %v", err)
+					}
+				}()
+				cmdDialog := NewCommandModal(fa.app)
+				cmdDialog.SetTitle(" Installing Calico... ")
+				cmdDialog.SetOnClose(func() {
+					fa.pages.RemovePage("installCalico")
+				})
+				cmdDialog.ReadFromChannel(logChan)
+				fa.pages.AddPage("installCalico", cmdDialog.GetPrimitive(), true, true)
+			}
+		})
+	fa.pages.AddPage("confirmInstall", confirm, true, true)
 
-		// err := util.InstallCalico(ctx, kc, dc)
-		// fa.app.QueueUpdateDraw(func() {
-		// 	modal := tview.NewModal().SetText("Calico operator install: " + func() string {
-		// 		if err != nil {
-		// 			return "Failed: " + err.Error()
-		// 		}
-		// 		return "Success!"
-		// 	}()).AddButtons([]string{"OK"}).SetDoneFunc(func(_ int, _ string) {
-		// 		fa.pages.RemovePage("installResult")
-		// 	})
-		// 	fa.pages.AddPage("installResult", modal, true, true)
-		// })
-	}()
+	// go func() {
+	// 	cc := cmdctx.CmdCtxFromContext(ctx)
+	// 	kc := cc.Clientset()
+	// 	dc := cc.ClientDyn()
+	//
+	// 	// err := util.InstallCalico(ctx, kc, dc)
+	// 	// fa.app.QueueUpdateDraw(func() {
+	// 	// 	modal := tview.NewModal().SetText("Calico operator install: " + func() string {
+	// 	// 		if err != nil {
+	// 	// 			return "Failed: " + err.Error()
+	// 	// 		}
+	// 	// 		return "Success!"
+	// 	// 	}()).AddButtons([]string{"OK"}).SetDoneFunc(func(_ int, _ string) {
+	// 	// 		fa.pages.RemovePage("installResult")
+	// 	// 	})
+	// 	// 	fa.pages.AddPage("installResult", modal, true, true)
+	// 	// })
+	// }()
 }

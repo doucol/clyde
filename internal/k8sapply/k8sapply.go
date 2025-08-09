@@ -1,275 +1,351 @@
-// Package k8sapply provides functionality to apply Kubernetes resources from YAML files, strings, or URLs.
+// Package k8sapply provides functionality to apply Kubernetes resources from various sources
 package k8sapply
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/restmapper"
 )
 
-// Applier handles applying Kubernetes resources from YAML
+// Applier handles applying Kubernetes resources
 type Applier struct {
-	clientset kubernetes.Interface
-	dynamic   dynamic.Interface
-	logger    io.Writer
-	events    chan string
-	resources []*metav1.APIResourceList
+	dynamicClient   dynamic.Interface
+	discoveryClient discovery.DiscoveryInterface
+	mapper          meta.RESTMapper
+	logWriter       io.Writer
+	logChan         chan string
 }
 
-// NewApplier creates a new Applier instance
-func NewApplier(clientset kubernetes.Interface, dynamicClient dynamic.Interface, logger io.Writer) (*Applier, error) {
-	// Get all API resources
-	apiResourceLists, err := getAPIResources(clientset)
+// ApplyOptions configures how resources are applied
+type ApplyOptions struct {
+	// Namespace to apply resources to (overrides resource namespace if set)
+	Namespace string
+	// DryRun performs a dry run without actually applying resources
+	DryRun bool
+	// Force will delete and recreate resources if update fails
+	Force bool
+	// Timeout for HTTP requests when fetching from URL
+	HTTPTimeout time.Duration
+}
+
+// ApplyResult contains information about an applied resource
+type ApplyResult struct {
+	Name      string
+	Namespace string
+	Kind      string
+	Action    string // "created", "updated", "unchanged", "deleted"
+	Error     error
+}
+
+// NewApplierWithClients creates a new Applier with existing Kubernetes clients
+func NewApplierWithClients(clientset kubernetes.Interface, dynamicClient dynamic.Interface, logger io.Writer) (*Applier, error) {
+	// Use the clientset's discovery client
+	discoveryClient := clientset.Discovery()
+
+	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get API group resources: %w", err)
 	}
 
+	mapper := restmapper.NewDiscoveryRESTMapper(groupResources)
+
 	return &Applier{
-		clientset: clientset,
-		dynamic:   dynamicClient,
-		logger:    logger,
-		events:    nil,
-		resources: apiResourceLists,
+		dynamicClient:   dynamicClient,
+		discoveryClient: discoveryClient,
+		mapper:          mapper,
+		logWriter:       logger,
 	}, nil
 }
 
-func (a *Applier) Events() chan string {
-	if a.events == nil {
-		a.events = make(chan string, 100) // Buffered channel to avoid blocking
+func (a *Applier) LogChan() chan string {
+	if a.logChan == nil {
+		a.logChan = make(chan string, 100) // Buffered channel to avoid blocking
 	}
-	return a.events
-}
-
-func (a *Applier) Close() {
-	if a.events != nil {
-		close(a.events)
-		a.events = nil
-	}
-}
-
-func getAPIResources(clientset kubernetes.Interface) ([]*metav1.APIResourceList, error) {
-	discoveryClient := clientset.Discovery()
-	apiGroups, err := discoveryClient.ServerGroups()
-	if err != nil {
-		return nil, err
-	}
-	retval := []*metav1.APIResourceList{}
-	for _, group := range apiGroups.Groups {
-		for _, version := range group.Versions {
-			resources, err := discoveryClient.ServerResourcesForGroupVersion(version.GroupVersion)
-			if err != nil {
-				// fmt.Printf("Skipping %s: %v\n", version.GroupVersion, err)
-				continue
-			}
-			retval = append(retval, resources)
-		}
-	}
-	return retval, nil
+	return a.logChan
 }
 
 func (a *Applier) Logf(format string, args ...any) {
-	if a.logger != nil {
-		_, _ = fmt.Fprintf(a.logger, format+"\n", args...)
-	}
-	if a.events != nil {
-		a.events <- fmt.Sprintf(format, args...)
+	if len(format) == 0 {
+		a.Log(fmt.Sprintf(format, args...))
 	}
 }
 
-// ApplyFile applies resources from a YAML file
-func (a *Applier) ApplyFile(ctx context.Context, filepath string) error {
-	file, err := os.Open(filepath)
+func (a *Applier) Log(message string) {
+	if len(message) == 0 {
+		return
+	}
+	if a.logWriter != nil {
+		if _, err := fmt.Fprint(a.logWriter, message+"\n"); err != nil {
+			panic(fmt.Sprintf("failed to write log: %v", err))
+		}
+	}
+	if a.logChan != nil {
+		a.logChan <- message
+	}
+}
+
+func (a *Applier) Close() {
+	if a.logChan != nil {
+		close(a.logChan)
+	}
+}
+
+// ApplyFromURL applies resources from a YAML URL
+func (a *Applier) ApplyFromURL(ctx context.Context, url string, opts *ApplyOptions) ([]ApplyResult, error) {
+	if opts == nil {
+		opts = &ApplyOptions{}
+	}
+
+	yamlContent, err := a.fetchFromURL(url, opts.HTTPTimeout)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", filepath, err)
+		return nil, fmt.Errorf("failed to fetch from URL: %w", err)
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
-	return a.ApplyReader(ctx, file)
+	return a.ApplyFromString(ctx, yamlContent, opts)
 }
 
-// ApplyString applies resources from a YAML string
-func (a *Applier) ApplyString(ctx context.Context, yamlContent string) error {
-	reader := strings.NewReader(yamlContent)
-	return a.ApplyReader(ctx, reader)
+// ApplyFromFile applies resources from a YAML file
+func (a *Applier) ApplyFromFile(ctx context.Context, filepath string, opts *ApplyOptions) ([]ApplyResult, error) {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	return a.ApplyFromString(ctx, string(content), opts)
 }
 
-// ApplyURL applies resources from a YAML file located at a URL
-func (a *Applier) ApplyURL(ctx context.Context, url string) error {
-	return a.ApplyURLWithTimeout(ctx, url, 30*time.Second)
+// ApplyFromString applies resources from a YAML string
+func (a *Applier) ApplyFromString(ctx context.Context, yamlContent string, opts *ApplyOptions) ([]ApplyResult, error) {
+	if opts == nil {
+		opts = &ApplyOptions{}
+	}
+
+	resources, err := a.parseYAML(yamlContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	results := make([]ApplyResult, 0, len(resources))
+	for _, resource := range resources {
+		result := a.applyResource(ctx, resource, opts)
+		if result.Error != nil {
+			a.Logf("Error applying %s/%s (%s): %v", resource.GetNamespace(), resource.GetName(), resource.GetKind(), result.Error)
+		} else {
+			a.Logf("Applied %s/%s (%s): %s", resource.GetNamespace(), resource.GetName(), resource.GetKind(), result.Action)
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }
 
-// ApplyURLWithTimeout applies resources from a YAML file located at a URL with a custom timeout
-func (a *Applier) ApplyURLWithTimeout(ctx context.Context, url string, timeout time.Duration) error {
-	// Create HTTP client with timeout
+// fetchFromURL fetches YAML content from a URL
+func (a *Applier) fetchFromURL(url string, timeout time.Duration) (string, error) {
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
 	client := &http.Client{
 		Timeout: timeout,
 	}
 
-	// Create request with context
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	resp, err := client.Get(url)
 	if err != nil {
-		return fmt.Errorf("failed to create HTTP request for %s: %w", url, err)
-	}
-
-	// Set User-Agent to identify the client
-	req.Header.Set("User-Agent", "clyde-k8sapply/1.0")
-
-	// Make the request
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to fetch YAML from %s: %w", url, err)
+		return "", err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP request failed with status %d for %s", resp.StatusCode, url)
+		return "", fmt.Errorf("HTTP request failed with status: %s", resp.Status)
 	}
 
-	// Apply the YAML content from the response body
-	return a.ApplyReader(ctx, resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
 }
 
-// ApplyReader applies resources from an io.Reader containing YAML
-func (a *Applier) ApplyReader(ctx context.Context, reader io.Reader) error {
-	decoder := yaml.NewYAMLOrJSONDecoder(reader, 1024)
+// parseYAML parses YAML content into unstructured objects
+func (a *Applier) parseYAML(yamlContent string) ([]*unstructured.Unstructured, error) {
+	decoder := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(yamlContent)), 4096)
+	resources := make([]*unstructured.Unstructured, 0)
 
 	for {
-		var obj unstructured.Unstructured
-		err := decoder.Decode(&obj)
+		var rawObj runtime.RawExtension
+		err := decoder.Decode(&rawObj)
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("failed to decode YAML: %w", err)
+			return nil, fmt.Errorf("error decoding YAML: %w", err)
 		}
 
-		// Skip empty objects
-		if len(obj.Object) == 0 {
+		if rawObj.Raw == nil {
 			continue
 		}
 
-		// Apply the resource
-		if err := a.applyResource(ctx, &obj); err != nil {
-			return fmt.Errorf("failed to apply resource %s/%s: %w", obj.GetKind(), obj.GetName(), err)
+		obj, _, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding raw object: %w", err)
 		}
+
+		unstructuredObj, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			return nil, fmt.Errorf("object is not unstructured")
+		}
+
+		// Skip empty objects
+		if unstructuredObj.GetKind() == "" {
+			continue
+		}
+
+		resources = append(resources, unstructuredObj)
 	}
 
-	return nil
+	return resources, nil
 }
 
-// applyResource applies a single Kubernetes resource
-func (a *Applier) applyResource(ctx context.Context, obj *unstructured.Unstructured) error {
-	gvk := obj.GroupVersionKind()
-	namespace := obj.GetNamespace()
+// applyResource applies a single resource
+func (a *Applier) applyResource(ctx context.Context, resource *unstructured.Unstructured, opts *ApplyOptions) ApplyResult {
+	result := ApplyResult{
+		Name:      resource.GetName(),
+		Namespace: resource.GetNamespace(),
+		Kind:      resource.GetKind(),
+	}
 
-	// Find the API resource for this GVK
-	apiResource, err := a.findAPIResourceForGVK(gvk)
+	// Override namespace if specified in options
+	if opts.Namespace != "" && resource.GetNamespace() != "" {
+		resource.SetNamespace(opts.Namespace)
+		result.Namespace = opts.Namespace
+	}
+
+	// Get GVR for the resource
+	gvk := resource.GroupVersionKind()
+	mapping, err := a.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
-		return fmt.Errorf("failed to find API resource for GVK %s/%s %s: %w",
-			gvk.GroupVersion().String(), gvk.Kind, obj.GetName(), err)
+		result.Error = fmt.Errorf("failed to get REST mapping: %w", err)
+		return result
 	}
 
-	// Determine if the resource is namespaced
-	isNamespaced := apiResource.Namespaced
-	if isNamespaced && namespace == "" {
-		namespace = "default"
-	}
-
-	gvr := gvk.GroupVersion().WithResource(apiResource.Name)
-	resourceClient := a.dynamic.Resource(gvr)
-
-	var existing *unstructured.Unstructured
-	if isNamespaced {
-		// For namespaced resources, use namespace
-		existing, err = resourceClient.Namespace(namespace).Get(ctx, obj.GetName(), metav1.GetOptions{})
-	} else {
-		// For non-namespaced resources, use cluster-scoped client
-		existing, err = resourceClient.Get(ctx, obj.GetName(), metav1.GetOptions{})
-	}
-
-	if err != nil {
-		// Resource doesn't exist, create it
-		if isNamespaced {
-			_, err = resourceClient.Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to create namespaced object %s %s: %w", gvk.Kind, obj.GetName(), err)
-			}
-		} else {
-			_, err = resourceClient.Create(ctx, obj, metav1.CreateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to create non-namespaced object %s %s: %w", gvk.Kind, obj.GetName(), err)
-			}
+	// Get the appropriate client
+	var dr dynamic.ResourceInterface
+	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+		if resource.GetNamespace() == "" {
+			resource.SetNamespace("default")
+			result.Namespace = "default"
 		}
-		a.Logf("Created %s/%s %s", gvk.GroupVersion().String(), gvk.Kind, obj.GetName())
-		return nil
-	}
-
-	// Resource exists, update it
-	obj.SetResourceVersion(existing.GetResourceVersion())
-	if isNamespaced {
-		_, err = resourceClient.Namespace(namespace).Update(ctx, obj, metav1.UpdateOptions{})
+		dr = a.dynamicClient.Resource(mapping.Resource).Namespace(resource.GetNamespace())
 	} else {
-		_, err = resourceClient.Update(ctx, obj, metav1.UpdateOptions{})
+		dr = a.dynamicClient.Resource(mapping.Resource)
 	}
-	if err != nil {
-		return fmt.Errorf("failed to update %s %s: %w", gvk.Kind, obj.GetName(), err)
-	}
-	a.Logf("Updated %s/%s %s", gvk.GroupVersion().String(), gvk.Kind, obj.GetName())
 
-	return nil
+	// Try to get existing resource
+	existing, err := dr.Get(ctx, resource.GetName(), metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Create new resource
+			if opts.DryRun {
+				result.Action = "would create"
+				return result
+			}
+
+			_, err = dr.Create(ctx, resource, metav1.CreateOptions{})
+			if err != nil {
+				result.Error = fmt.Errorf("failed to create resource: %w", err)
+				return result
+			}
+			result.Action = "created"
+			return result
+		}
+		result.Error = fmt.Errorf("failed to get resource: %w", err)
+		return result
+	}
+
+	// Update existing resource
+	resource.SetResourceVersion(existing.GetResourceVersion())
+
+	if opts.DryRun {
+		result.Action = "would update"
+		return result
+	}
+
+	_, err = dr.Update(ctx, resource, metav1.UpdateOptions{})
+	if err != nil {
+		if opts.Force {
+			// Force update by deleting and recreating
+			err = dr.Delete(ctx, resource.GetName(), metav1.DeleteOptions{})
+			if err != nil {
+				result.Error = fmt.Errorf("failed to delete for force update: %w", err)
+				return result
+			}
+
+			// Remove resource version for create
+			resource.SetResourceVersion("")
+			_, err = dr.Create(ctx, resource, metav1.CreateOptions{})
+			if err != nil {
+				result.Error = fmt.Errorf("failed to recreate resource: %w", err)
+				return result
+			}
+			result.Action = "recreated"
+			return result
+		}
+		result.Error = fmt.Errorf("failed to update resource: %w", err)
+		return result
+	}
+
+	result.Action = "updated"
+	return result
 }
 
-func (a *Applier) findAPIResourceForGVK(gvk schema.GroupVersionKind) (*metav1.APIResource, error) {
-	// First pass: exact match
-	for _, apiResourceList := range a.resources {
-		for _, apiResource := range apiResourceList.APIResources {
-			version := apiResource.Version
-			if version == "" {
-				version = "v1"
-			}
-			if apiResource.Group == gvk.Group && version == gvk.Version && apiResource.Kind == gvk.Kind {
-				return &apiResource, nil
-			}
+// ResultsSummary provides a summary of apply results
+func ResultsSummary(results []ApplyResult) string {
+	var created, updated, unchanged, failed int
+	var errors []string
+
+	for _, r := range results {
+		if r.Error != nil {
+			failed++
+			errors = append(errors, fmt.Sprintf("%s/%s (%s): %v", r.Namespace, r.Name, r.Kind, r.Error))
+			continue
+		}
+
+		switch r.Action {
+		case "created", "would create":
+			created++
+		case "updated", "would update", "recreated":
+			updated++
+		case "unchanged":
+			unchanged++
 		}
 	}
 
-	// Second pass: try to find by kind and group, ignoring version differences
-	// This handles cases where the API server might return different versions than expected
-	for _, apiResourceList := range a.resources {
-		for _, apiResource := range apiResourceList.APIResources {
-			if apiResource.Group == gvk.Group && apiResource.Kind == gvk.Kind {
-				return &apiResource, nil
-			}
-		}
+	summary := fmt.Sprintf("Created: %d, Updated: %d, Unchanged: %d, Failed: %d",
+		created, updated, unchanged, failed)
+
+	if len(errors) > 0 {
+		summary += "\nErrors:\n" + strings.Join(errors, "\n")
 	}
 
-	// Third pass: try to find by kind, ignoring group and version differences
-	// This handles cases where the API server might return different versions than expected
-	for _, apiResourceList := range a.resources {
-		for _, apiResource := range apiResourceList.APIResources {
-			log.Printf("apiResource: %+v", apiResource)
-			if apiResource.Group == "" && apiResource.Version == "" && apiResource.Kind == gvk.Kind {
-				return &apiResource, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("api resource not found: GVK: %s | %s | %s", gvk.Group, gvk.Version, gvk.Kind)
+	return summary
 }

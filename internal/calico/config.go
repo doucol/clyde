@@ -29,7 +29,7 @@ func (cm *CalicoManager) GetFelixConfiguration(ctx context.Context) (*FelixConfi
 	}
 
 	item := list.Items[0]
-	spec := item.Object["spec"].(map[string]interface{})
+	spec := item.Object["spec"].(map[string]any)
 
 	config := &FelixConfiguration{
 		Name: item.GetName(),
@@ -61,18 +61,18 @@ func (cm *CalicoManager) GetFelixConfiguration(ctx context.Context) (*FelixConfi
 }
 
 // UpdateFelixConfiguration updates the Felix configuration
-func (cm *CalicoManager) UpdateFelixConfiguration(ctx context.Context, config *FelixConfiguration) error {
-	cm.Logf("Updating Felix configuration...")
-
-	manifest := cm.generateFelixConfigurationManifest(config)
-
-	if err := cm.applyManifest(ctx, manifest); err != nil {
-		return fmt.Errorf("failed to update Felix configuration: %w", err)
-	}
-
-	cm.Logf("Felix configuration updated successfully")
-	return nil
-}
+// func (cm *CalicoManager) UpdateFelixConfiguration(ctx context.Context, config *FelixConfiguration) error {
+// 	cm.Logf("Updating Felix configuration...")
+//
+// 	manifest := cm.generateFelixConfigurationManifest(config)
+//
+// 	if err := cm.applyManifest(ctx, manifest); err != nil {
+// 		return fmt.Errorf("failed to update Felix configuration: %w", err)
+// 	}
+//
+// 	cm.Logf("Felix configuration updated successfully")
+// 	return nil
+// }
 
 // GetBGPConfiguration returns the BGP configuration
 func (cm *CalicoManager) GetBGPConfiguration(ctx context.Context) (*BGPConfiguration, error) {
@@ -123,18 +123,18 @@ func (cm *CalicoManager) GetBGPConfiguration(ctx context.Context) (*BGPConfigura
 }
 
 // UpdateBGPConfiguration updates the BGP configuration
-func (cm *CalicoManager) UpdateBGPConfiguration(ctx context.Context, config *BGPConfiguration) error {
-	cm.Logf("Updating BGP configuration...")
-
-	manifest := cm.generateBGPConfigurationManifest(config)
-
-	if err := cm.applyManifest(ctx, manifest); err != nil {
-		return fmt.Errorf("failed to update BGP configuration: %w", err)
-	}
-
-	cm.Logf("BGP configuration updated successfully")
-	return nil
-}
+// func (cm *CalicoManager) UpdateBGPConfiguration(ctx context.Context, config *BGPConfiguration) error {
+// 	cm.Logf("Updating BGP configuration...")
+//
+// 	manifest := cm.generateBGPConfigurationManifest(config)
+//
+// 	if err := cm.applyManifest(ctx, manifest); err != nil {
+// 		return fmt.Errorf("failed to update BGP configuration: %w", err)
+// 	}
+//
+// 	cm.Logf("BGP configuration updated successfully")
+// 	return nil
+// }
 
 // GetClusterInformation returns cluster information
 func (cm *CalicoManager) GetClusterInformation(ctx context.Context) (*ClusterInformation, error) {
@@ -211,18 +211,18 @@ func (cm *CalicoManager) GetGlobalNetworkSets(ctx context.Context) ([]*GlobalNet
 }
 
 // CreateGlobalNetworkSet creates a new global network set
-func (cm *CalicoManager) CreateGlobalNetworkSet(ctx context.Context, networkSet *GlobalNetworkSet) error {
-	cm.Logf("Creating global network set %s", networkSet.Name)
-
-	manifest := cm.generateGlobalNetworkSetManifest(networkSet)
-
-	if err := cm.applyManifest(ctx, manifest); err != nil {
-		return fmt.Errorf("failed to create global network set: %w", err)
-	}
-
-	cm.Logf("Global network set %s created successfully", networkSet.Name)
-	return nil
-}
+// func (cm *CalicoManager) CreateGlobalNetworkSet(ctx context.Context, networkSet *GlobalNetworkSet) error {
+// 	cm.Logf("Creating global network set %s", networkSet.Name)
+//
+// 	manifest := cm.generateGlobalNetworkSetManifest(networkSet)
+//
+// 	if err := cm.applyManifest(ctx, manifest); err != nil {
+// 		return fmt.Errorf("failed to create global network set: %w", err)
+// 	}
+//
+// 	cm.Logf("Global network set %s created successfully", networkSet.Name)
+// 	return nil
+// }
 
 // DeleteGlobalNetworkSet deletes a global network set
 func (cm *CalicoManager) DeleteGlobalNetworkSet(ctx context.Context, name string) error {
@@ -289,18 +289,18 @@ func (cm *CalicoManager) GetHostEndpoints(ctx context.Context) ([]*HostEndpoint,
 }
 
 // CreateHostEndpoint creates a new host endpoint
-func (cm *CalicoManager) CreateHostEndpoint(ctx context.Context, endpoint *HostEndpoint) error {
-	cm.Logf("Creating host endpoint %s", endpoint.Name)
-
-	manifest := cm.generateHostEndpointManifest(endpoint)
-
-	if err := cm.applyManifest(ctx, manifest); err != nil {
-		return fmt.Errorf("failed to create host endpoint: %w", err)
-	}
-
-	cm.Logf("Host endpoint %s created successfully", endpoint.Name)
-	return nil
-}
+// func (cm *CalicoManager) CreateHostEndpoint(ctx context.Context, endpoint *HostEndpoint) error {
+// 	cm.Logf("Creating host endpoint %s", endpoint.Name)
+//
+// 	manifest := cm.generateHostEndpointManifest(endpoint)
+//
+// 	if err := cm.applyManifest(ctx, manifest); err != nil {
+// 		return fmt.Errorf("failed to create host endpoint: %w", err)
+// 	}
+//
+// 	cm.Logf("Host endpoint %s created successfully", endpoint.Name)
+// 	return nil
+// }
 
 // DeleteHostEndpoint deletes a host endpoint
 func (cm *CalicoManager) DeleteHostEndpoint(ctx context.Context, name string) error {
