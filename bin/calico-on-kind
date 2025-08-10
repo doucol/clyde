@@ -11,7 +11,7 @@ set -o pipefail
 OSNAME=$(uname -s)
 DEFAULT_DP=Nftables
 DEFAULT_ENCAP=VXLANCrossSubnet
-DEFAULT_K8SVER=v1.31.6
+DEFAULT_K8SVER=v1.32.5
 DEFAULT_VERSION=v3.30
 if [[ "${OSNAME}" == "Darwin" ]]; then
   DEFAULT_DP=Iptables
