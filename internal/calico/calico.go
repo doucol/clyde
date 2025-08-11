@@ -11,8 +11,7 @@ import (
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/githubversions"
 	k8sapplier "github.com/doucol/clyde/internal/k8sapply"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -138,7 +137,7 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 
 	// Wait for Tigera operator to be ready
 	cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
-	err = WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
+	err = cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
 	if err != nil {
 		cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
 		return err
@@ -715,81 +714,29 @@ func (cm *CalicoManager) GetBGPPeers(ctx context.Context) ([]*BGPPeer, error) {
 func (cm *CalicoManager) waitForCalicoCRDs(ctx context.Context) error {
 	cm.Logf("[white]Waiting for Calico CRDs to be created...")
 
+	cc := cmdctx.CmdCtxFromContext(ctx)
+	apiextensionsClient, err := apiextensionsclientset.NewForConfig(cc.GetK8sConfig())
+	if err != nil {
+		return fmt.Errorf("failed to create apiextensions client: %v", err)
+	}
+
 	crdNames := []string{
-		"tigerastatuses.operator.tigera.io",
-		"apiservers.operator.tigera.io",
 		"installations.operator.tigera.io",
 		"goldmanes.operator.tigera.io",
 		"whiskers.operator.tigera.io",
 	}
 
 	// Wait for each CRD to be available
-	cc := cmdctx.CmdCtxFromContext(ctx)
-	restCfg := cc.GetK8sConfig()
-	extClient, err := apiextensionsclient.NewForConfig(restCfg)
-	if err != nil {
-		return err
-	}
 	for _, name := range crdNames {
-		if err := waitForCRDWithWatch(ctx, extClient, name, 1*time.Minute); err != nil {
+		if err := WaitForCRDEstablished(ctx, apiextensionsClient, name, 5*time.Minute); err != nil {
+			cm.Logf("[red]CRD %s did not become established: %v", name, err)
 			return err
 		}
+		cm.Logf("[green]CRD %s is established", name)
 	}
 
 	cm.Logf("[green]All Calico CRDs are now available!")
 	return nil
-}
-
-// WaitForCRDWithWatch waits for a specific CRD to become available using a watch
-func waitForCRDWithWatch(ctx context.Context, client apiextensionsclient.Interface, crdName string, timeout time.Duration) error {
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// First check if it already exists and is ready
-	crd, err := client.ApiextensionsV1().CustomResourceDefinitions().Get(ctxTimeout, crdName, metav1.GetOptions{})
-	if err == nil && isCRDReady(crd) {
-		return nil
-	}
-
-	// Set up watch
-	watcher, err := client.ApiextensionsV1().CustomResourceDefinitions().Watch(ctxTimeout, metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("metadata.name=%s", crdName),
-	})
-	if err != nil {
-		return err
-	}
-	defer watcher.Stop()
-
-	for {
-		select {
-		case event := <-watcher.ResultChan():
-			if event.Object == nil {
-				return fmt.Errorf("watch closed unexpectedly")
-			}
-
-			crd, ok := event.Object.(*apiextensionsv1.CustomResourceDefinition)
-			if !ok {
-				continue
-			}
-
-			if isCRDReady(crd) {
-				return nil
-			}
-		case <-ctx.Done():
-			return nil
-		case <-ctxTimeout.Done():
-			return fmt.Errorf("timeout waiting for CRD %s to be ready", crdName)
-		}
-	}
-}
-
-func isCRDReady(crd *apiextensionsv1.CustomResourceDefinition) bool {
-	for _, condition := range crd.Status.Conditions {
-		if condition.Type == apiextensionsv1.Established {
-			return condition.Status == apiextensionsv1.ConditionTrue
-		}
-	}
-	return false
 }
 
 // // waitForSingleCRD waits for a single CRD to become available

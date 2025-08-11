@@ -15,7 +15,7 @@ import (
 )
 
 // WaitForTigeraOperatorAvailable waits for all Tigera operator status resources to become available
-func WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, timeout time.Duration) error {
+func (cm *CalicoManager) WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, timeout time.Duration) error {
 	// Define the GVR for TigeraStatus resource
 	tigeraStatusGVR := schema.GroupVersionResource{
 		Group:    "operator.tigera.io",
@@ -28,7 +28,7 @@ func WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.C
 	defer cancel()
 
 	// Check initial state first
-	if available, err := checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
+	if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
 		return fmt.Errorf("initial status check failed: %w", err)
 	} else if available {
 		return nil
@@ -50,15 +50,15 @@ func WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.C
 		select {
 		case <-ctxWithTimeout.Done():
 			// Before returning timeout error, do one final check
-			if available, err := checkAllTigeraStatusesAvailable(ctx, dynamicClient, tigeraStatusGVR); err == nil && available {
+			if available, err := cm.checkAllTigeraStatusesAvailable(ctx, dynamicClient, tigeraStatusGVR); err == nil && available {
 				return nil
 			}
 			// Get debug info before returning error
-			debugInfo := getTigeraStatusDebugInfo(ctx, dynamicClient, tigeraStatusGVR)
+			debugInfo := cm.getTigeraStatusDebugInfo(ctx, dynamicClient, tigeraStatusGVR)
 			return fmt.Errorf("timeout waiting for Tigera operator status resources to become available: %w. Debug info: %s", ctxWithTimeout.Err(), debugInfo)
 		case <-ticker.C:
 			// Periodic check to ensure watch is working and provide feedback
-			if available, err := checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err == nil && available {
+			if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err == nil && available {
 				return nil
 			}
 		case event, ok := <-watchInterface.ResultChan():
@@ -77,7 +77,7 @@ func WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.C
 			switch event.Type {
 			case watch.Added, watch.Modified:
 				// Check if all statuses are available
-				if available, err := checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
+				if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
 					return fmt.Errorf("status check failed after event: %w", err)
 				} else if available {
 					return nil
@@ -90,7 +90,7 @@ func WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.C
 }
 
 // checkAllTigeraStatusesAvailable checks if all TigeraStatus resources are available
-func checkAllTigeraStatusesAvailable(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) (bool, error) {
+func (cm *CalicoManager) checkAllTigeraStatusesAvailable(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) (bool, error) {
 	// List all TigeraStatus resources (cluster-scoped)
 	list, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -100,7 +100,7 @@ func checkAllTigeraStatusesAvailable(ctx context.Context, dynamicClient dynamic.
 	// If no cluster-scoped resources found, try namespace-scoped resources
 	if len(list.Items) == 0 {
 		// Try common namespaces where TigeraStatus resources might be located
-		namespaces := []string{"tigera-operator", "calico-system", "kube-system"}
+		namespaces := []string{"tigera-operator", "calico-system"}
 		for _, ns := range namespaces {
 			nsList, err := dynamicClient.Resource(gvr).Namespace(ns).List(ctx, metav1.ListOptions{})
 			if err == nil && len(nsList.Items) > 0 {
@@ -117,16 +117,18 @@ func checkAllTigeraStatusesAvailable(ctx context.Context, dynamicClient dynamic.
 
 	// Check each TigeraStatus resource
 	for _, item := range list.Items {
-		if !isTigeraStatusAvailable(&item) {
+		if !cm.isTigeraStatusAvailable(&item) {
+			cm.Logf("TigeraStatus resource %s/%s is not available", item.GetNamespace(), item.GetName())
 			return false, nil
 		}
+		cm.Logf("TigeraStatus resource %s/%s is available", item.GetNamespace(), item.GetName())
 	}
 
 	return true, nil
 }
 
 // getTigeraStatusDebugInfo returns debug information about TigeraStatus resources
-func getTigeraStatusDebugInfo(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) string {
+func (cm *CalicoManager) getTigeraStatusDebugInfo(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) string {
 	// Check cluster-scoped resources first
 	list, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -159,7 +161,7 @@ func getTigeraStatusDebugInfo(ctx context.Context, dynamicClient dynamic.Interfa
 			namespace = "cluster-scoped"
 		}
 		status := "Not Available"
-		if isTigeraStatusAvailable(&item) {
+		if cm.isTigeraStatusAvailable(&item) {
 			status = "Available"
 		}
 		info = append(info, fmt.Sprintf("%s/%s: %s", namespace, name, status))
@@ -169,7 +171,7 @@ func getTigeraStatusDebugInfo(ctx context.Context, dynamicClient dynamic.Interfa
 }
 
 // isTigeraStatusAvailable checks if a single TigeraStatus resource is available
-func isTigeraStatusAvailable(status *unstructured.Unstructured) bool {
+func (cm *CalicoManager) isTigeraStatusAvailable(status *unstructured.Unstructured) bool {
 	// Get the status field
 	statusField, found, err := unstructured.NestedMap(status.Object, "status")
 	if err != nil || !found {
@@ -223,11 +225,11 @@ func isTigeraStatusAvailable(status *unstructured.Unstructured) bool {
 }
 
 // WaitForTigeraOperatorReadyWithRetry waits with exponential backoff retry
-func WaitForTigeraOperatorReadyWithRetry(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, maxRetries int, initialBackoff time.Duration) error {
+func (cm *CalicoManager) WaitForTigeraOperatorReadyWithRetry(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, maxRetries int, initialBackoff time.Duration) error {
 	backoff := initialBackoff
 
 	for i := 0; i < maxRetries; i++ {
-		err := WaitForTigeraOperatorAvailable(ctx, clientset, dynamicClient, 5*time.Minute)
+		err := cm.WaitForTigeraOperatorAvailable(ctx, clientset, dynamicClient, 5*time.Minute)
 		if err == nil {
 			return nil
 		}
