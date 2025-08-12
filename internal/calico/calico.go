@@ -373,14 +373,6 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 		break
 	}
 
-	// Wait for Tigera operator to be ready
-	// cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
-	// err := cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
-	// if err != nil {
-	// 	cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
-	// 	return err
-	// }
-
 	cm.Logf("[white]Applying Calico custom resources from version %s", latestVersion)
 	murl = fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latestVersion)
 	if err := cm.applyAndLog(ctx, murl); err != nil {
