@@ -12,6 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+// WaitForCRDEstablished waits for a CustomResourceDefinition to be established.
+// An established CRD means the Kubernetes API server has accepted the CRD and
+// is ready to serve resources of that type. This is the first step in CRD readiness.
 func WaitForCRDEstablished(ctx context.Context, apiextClient apiextensionsclient.Interface, crdName string, timeout time.Duration) error {
 	pollInterval := 2 * time.Second
 
@@ -46,7 +49,9 @@ func WaitForCRDEstablished(ctx context.Context, apiextClient apiextensionsclient
 	return wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, conditionFunc)
 }
 
-// WaitForCRDReady waits for a CRD to be both established and ready for use
+// WaitForCRDReady waits for a CRD to be both established and ready for use.
+// This includes waiting for the API server to fully process the CRD and
+// make it available for resource operations.
 func WaitForCRDReady(ctx context.Context, apiextClient apiextensionsclient.Interface, crdName string, timeout time.Duration) error {
 	// First wait for the CRD to be established
 	if err := WaitForCRDEstablished(ctx, apiextClient, crdName, timeout); err != nil {
@@ -95,7 +100,8 @@ func WaitForCRDReady(ctx context.Context, apiextClient apiextensionsclient.Inter
 	return wait.PollUntilContextTimeout(ctx, 1*time.Second, readyTimeout, true, readyConditionFunc)
 }
 
-// WaitForMultipleCRDsReady waits for multiple CRDs to be ready
+// WaitForMultipleCRDsReady waits for multiple CRDs to be ready.
+// This distributes the timeout across all CRDs and ensures they all become ready.
 func WaitForMultipleCRDsReady(ctx context.Context, apiextClient apiextensionsclient.Interface, crdNames []string, timeout time.Duration) error {
 	// Calculate timeout per CRD
 	timeoutPerCRD := timeout / time.Duration(len(crdNames))
@@ -112,7 +118,9 @@ func WaitForMultipleCRDsReady(ctx context.Context, apiextClient apiextensionscli
 	return nil
 }
 
-// GetCRDStatus returns detailed status information for a specific CRD
+// GetCRDStatus returns detailed status information for a specific CRD.
+// This provides comprehensive information about the CRD's current state
+// including all conditions and transition times.
 func GetCRDStatus(ctx context.Context, apiextClient apiextensionsclient.Interface, crdName string) (*CRDStatus, error) {
 	crd, err := apiextClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
@@ -143,21 +151,25 @@ func GetCRDStatus(ctx context.Context, apiextClient apiextensionsclient.Interfac
 	return status, nil
 }
 
-// CRDStatus represents the status of a CustomResourceDefinition
+// CRDStatus represents the status of a CustomResourceDefinition.
+// This provides a comprehensive view of the CRD's readiness state
+// and can be used for monitoring and troubleshooting.
 type CRDStatus struct {
-	Name               string
-	Established        bool
-	NamesAccepted      bool
-	Conditions         map[string]string
-	LastTransitionTime *metav1.Time
+	Name               string            // CRD name
+	Established        bool              // Whether the CRD is established
+	NamesAccepted      bool              // Whether the CRD names are accepted
+	Conditions         map[string]string // All CRD conditions and their statuses
+	LastTransitionTime *metav1.Time      // When the status last changed
 }
 
-// IsReady returns true if the CRD is fully ready
+// IsReady returns true if the CRD is fully ready.
+// A CRD is ready when both Established and NamesAccepted are true.
 func (cs *CRDStatus) IsReady() bool {
 	return cs.Established && cs.NamesAccepted
 }
 
-// GetStatusSummary returns a human-readable summary of the CRD status
+// GetStatusSummary returns a human-readable summary of the CRD status.
+// This is useful for logging and user-facing status displays.
 func (cs *CRDStatus) GetStatusSummary() string {
 	if cs.IsReady() {
 		return "Ready"

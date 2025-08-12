@@ -13,7 +13,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// WaitForTigeraOperatorAvailable waits for all Tigera operator status resources to become available
+// WaitForTigeraOperatorAvailable waits for all Tigera operator status resources to become available.
+// This function ensures the Tigera operator is fully deployed and ready to manage Calico resources.
+// It checks both the deployment status and the availability of operator-specific resources.
 func (cm *CalicoManager) WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, timeout time.Duration) error {
 	cm.Logf("[white]Waiting for Tigera operator to be available...")
 
@@ -45,7 +47,8 @@ func (cm *CalicoManager) WaitForTigeraOperatorAvailable(ctx context.Context, cli
 	return nil
 }
 
-// waitForTigeraOperatorDeployment waits for the Tigera operator deployment to be ready
+// waitForTigeraOperatorDeployment waits for the Tigera operator deployment to be ready.
+// This ensures the operator pods are running and available before proceeding.
 func (cm *CalicoManager) waitForTigeraOperatorDeployment(ctx context.Context, clientset *kubernetes.Clientset) error {
 	cm.Logf("[white]Checking Tigera operator deployment status...")
 
@@ -86,7 +89,8 @@ func (cm *CalicoManager) waitForTigeraOperatorDeployment(ctx context.Context, cl
 	}
 }
 
-// checkTigeraOperatorPods checks that the Tigera operator pods are running and ready
+// checkTigeraOperatorPods checks that the Tigera operator pods are running and ready.
+// This provides additional verification that the operator is functioning correctly.
 func (cm *CalicoManager) checkTigeraOperatorPods(ctx context.Context, clientset *kubernetes.Clientset) error {
 	pods, err := clientset.CoreV1().Pods("tigera-operator").List(ctx, metav1.ListOptions{
 		LabelSelector: "name=tigera-operator",
@@ -125,7 +129,8 @@ func (cm *CalicoManager) checkTigeraOperatorPods(ctx context.Context, clientset 
 	return nil
 }
 
-// waitForTigeraStatusResources waits for Tigera status resources to be available
+// waitForTigeraStatusResources waits for Tigera status resources to be available.
+// These resources indicate that the operator is fully functional and managing Calico resources.
 func (cm *CalicoManager) waitForTigeraStatusResources(ctx context.Context, dynamicClient dynamic.Interface) error {
 	cm.Logf("[white]Waiting for Tigera status resources...")
 
@@ -194,7 +199,8 @@ func (cm *CalicoManager) waitForTigeraStatusResources(ctx context.Context, dynam
 	}
 }
 
-// checkAllTigeraStatusesAvailable checks if all TigeraStatus resources are available
+// checkAllTigeraStatusesAvailable checks if all TigeraStatus resources are available.
+// This verifies that the operator has created and is managing all required status resources.
 func (cm *CalicoManager) checkAllTigeraStatusesAvailable(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) (bool, error) {
 	// List all TigeraStatus resources (cluster-scoped)
 	list, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
@@ -232,7 +238,8 @@ func (cm *CalicoManager) checkAllTigeraStatusesAvailable(ctx context.Context, dy
 	return true, nil
 }
 
-// getTigeraStatusDebugInfo returns debug information about TigeraStatus resources
+// getTigeraStatusDebugInfo returns debug information about TigeraStatus resources.
+// This is useful for troubleshooting when status resources are not available as expected.
 func (cm *CalicoManager) getTigeraStatusDebugInfo(ctx context.Context, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource) string {
 	// Check cluster-scoped resources first
 	list, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
@@ -275,7 +282,8 @@ func (cm *CalicoManager) getTigeraStatusDebugInfo(ctx context.Context, dynamicCl
 	return fmt.Sprintf("Found %d TigeraStatus resources: %s", len(allItems), strings.Join(info, ", "))
 }
 
-// isTigeraStatusAvailable checks if a single TigeraStatus resource is available
+// isTigeraStatusAvailable checks if a single TigeraStatus resource is available.
+// This examines the resource's status field to determine availability.
 func (cm *CalicoManager) isTigeraStatusAvailable(status *unstructured.Unstructured) bool {
 	// Get the status field
 	statusField, found, err := unstructured.NestedMap(status.Object, "status")
@@ -329,7 +337,8 @@ func (cm *CalicoManager) isTigeraStatusAvailable(status *unstructured.Unstructur
 	return false
 }
 
-// verifyTigeraOperatorFunctionality verifies that the Tigera operator is working by checking basic operations
+// verifyTigeraOperatorFunctionality verifies that the Tigera operator is working by checking basic operations.
+// This is a more reliable way to verify the operator is working than just checking resource existence.
 func (cm *CalicoManager) verifyTigeraOperatorFunctionality(ctx context.Context, dynamicClient dynamic.Interface) error {
 	cm.Logf("[white]Verifying Tigera operator functionality...")
 
@@ -366,7 +375,8 @@ func (cm *CalicoManager) verifyTigeraOperatorFunctionality(ctx context.Context, 
 	return fmt.Errorf("could not verify Tigera operator functionality with any resource")
 }
 
-// WaitForTigeraOperatorReadyWithRetry waits with exponential backoff retry
+// WaitForTigeraOperatorReadyWithRetry waits with exponential backoff retry.
+// This provides a robust way to wait for the operator to be ready with automatic retry logic.
 func (cm *CalicoManager) WaitForTigeraOperatorReadyWithRetry(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, maxRetries int, initialBackoff time.Duration) error {
 	backoff := initialBackoff
 

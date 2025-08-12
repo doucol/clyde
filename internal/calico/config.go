@@ -1,4 +1,5 @@
 // Package calico provides comprehensive Calico OSS management capabilities
+// including configuration management for various Calico components.
 package calico
 
 import (
@@ -9,7 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// GetFelixConfiguration returns the Felix configuration
+// GetFelixConfiguration returns the Felix configuration from the cluster.
+// Felix is the Calico agent that runs on each node and handles networking.
+// This function retrieves the current Felix configuration settings.
 func (cm *CalicoManager) GetFelixConfiguration(ctx context.Context) (*FelixConfiguration, error) {
 	cm.Logf("Getting Felix configuration...")
 
@@ -60,21 +63,9 @@ func (cm *CalicoManager) GetFelixConfiguration(ctx context.Context) (*FelixConfi
 	return config, nil
 }
 
-// UpdateFelixConfiguration updates the Felix configuration
-// func (cm *CalicoManager) UpdateFelixConfiguration(ctx context.Context, config *FelixConfiguration) error {
-// 	cm.Logf("Updating Felix configuration...")
-//
-// 	manifest := cm.generateFelixConfigurationManifest(config)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to update Felix configuration: %w", err)
-// 	}
-//
-// 	cm.Logf("Felix configuration updated successfully")
-// 	return nil
-// }
-
-// GetBGPConfiguration returns the BGP configuration
+// GetBGPConfiguration returns the BGP configuration from the cluster.
+// BGP configuration controls routing behavior and service advertisement.
+// This function retrieves the current BGP configuration settings.
 func (cm *CalicoManager) GetBGPConfiguration(ctx context.Context) (*BGPConfiguration, error) {
 	cm.Logf("Getting BGP configuration...")
 
@@ -122,21 +113,9 @@ func (cm *CalicoManager) GetBGPConfiguration(ctx context.Context) (*BGPConfigura
 	return config, nil
 }
 
-// UpdateBGPConfiguration updates the BGP configuration
-// func (cm *CalicoManager) UpdateBGPConfiguration(ctx context.Context, config *BGPConfiguration) error {
-// 	cm.Logf("Updating BGP configuration...")
-//
-// 	manifest := cm.generateBGPConfigurationManifest(config)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to update BGP configuration: %w", err)
-// 	}
-//
-// 	cm.Logf("BGP configuration updated successfully")
-// 	return nil
-// }
-
-// GetClusterInformation returns cluster information
+// GetClusterInformation returns cluster information from the cluster.
+// This provides metadata about the cluster and Calico installation.
+// This function retrieves the current cluster information.
 func (cm *CalicoManager) GetClusterInformation(ctx context.Context) (*ClusterInformation, error) {
 	cm.Logf("Getting cluster information...")
 
@@ -175,7 +154,9 @@ func (cm *CalicoManager) GetClusterInformation(ctx context.Context) (*ClusterInf
 	return info, nil
 }
 
-// GetGlobalNetworkSets returns all global network sets
+// GetGlobalNetworkSets returns all global network sets from the cluster.
+// Global network sets define IP ranges that can be referenced in policies.
+// This function retrieves all configured global network sets.
 func (cm *CalicoManager) GetGlobalNetworkSets(ctx context.Context) ([]*GlobalNetworkSet, error) {
 	cm.Logf("Getting global network sets...")
 
@@ -210,21 +191,8 @@ func (cm *CalicoManager) GetGlobalNetworkSets(ctx context.Context) ([]*GlobalNet
 	return networkSets, nil
 }
 
-// CreateGlobalNetworkSet creates a new global network set
-// func (cm *CalicoManager) CreateGlobalNetworkSet(ctx context.Context, networkSet *GlobalNetworkSet) error {
-// 	cm.Logf("Creating global network set %s", networkSet.Name)
-//
-// 	manifest := cm.generateGlobalNetworkSetManifest(networkSet)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to create global network set: %w", err)
-// 	}
-//
-// 	cm.Logf("Global network set %s created successfully", networkSet.Name)
-// 	return nil
-// }
-
-// DeleteGlobalNetworkSet deletes a global network set
+// DeleteGlobalNetworkSet deletes a global network set from the cluster.
+// This removes the specified network set and its associated IP ranges.
 func (cm *CalicoManager) DeleteGlobalNetworkSet(ctx context.Context, name string) error {
 	cm.Logf("Deleting global network set %s", name)
 
@@ -242,7 +210,9 @@ func (cm *CalicoManager) DeleteGlobalNetworkSet(ctx context.Context, name string
 	return nil
 }
 
-// GetHostEndpoints returns all host endpoints
+// GetHostEndpoints returns all host endpoints from the cluster.
+// Host endpoints allow policies to be applied to host interfaces.
+// This function retrieves all configured host endpoints.
 func (cm *CalicoManager) GetHostEndpoints(ctx context.Context) ([]*HostEndpoint, error) {
 	cm.Logf("Getting host endpoints...")
 
@@ -288,21 +258,8 @@ func (cm *CalicoManager) GetHostEndpoints(ctx context.Context) ([]*HostEndpoint,
 	return endpoints, nil
 }
 
-// CreateHostEndpoint creates a new host endpoint
-// func (cm *CalicoManager) CreateHostEndpoint(ctx context.Context, endpoint *HostEndpoint) error {
-// 	cm.Logf("Creating host endpoint %s", endpoint.Name)
-//
-// 	manifest := cm.generateHostEndpointManifest(endpoint)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to create host endpoint: %w", err)
-// 	}
-//
-// 	cm.Logf("Host endpoint %s created successfully", endpoint.Name)
-// 	return nil
-// }
-
-// DeleteHostEndpoint deletes a host endpoint
+// DeleteHostEndpoint deletes a host endpoint from the cluster.
+// This removes the specified host endpoint and its associated policies.
 func (cm *CalicoManager) DeleteHostEndpoint(ctx context.Context, name string) error {
 	cm.Logf("Deleting host endpoint %s", name)
 
@@ -320,7 +277,9 @@ func (cm *CalicoManager) DeleteHostEndpoint(ctx context.Context, name string) er
 	return nil
 }
 
-// GetWorkloadEndpoints returns workload endpoints for a namespace
+// GetWorkloadEndpoints returns workload endpoints for a specific namespace.
+// Workload endpoints represent pod network interfaces.
+// This function retrieves all workload endpoints in the specified namespace.
 func (cm *CalicoManager) GetWorkloadEndpoints(ctx context.Context, namespace string) ([]*WorkloadEndpoint, error) {
 	cm.Logf("Getting workload endpoints for namespace %s", namespace)
 

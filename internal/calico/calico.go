@@ -1,5 +1,12 @@
 // Package calico provides comprehensive Calico OSS management capabilities
 // including installation, configuration, and management of Calico resources.
+//
+// The package supports:
+// - Operator-based installation of Calico
+// - CRD management and validation
+// - Resource status monitoring
+// - Configuration management
+// - Health checking and diagnostics
 package calico
 
 import (
@@ -19,7 +26,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// CalicoManager provides comprehensive Calico OSS management capabilities
+// CalicoManager provides comprehensive Calico OSS management capabilities.
+// It handles installation, configuration, and management of Calico resources
+// in Kubernetes clusters.
 type CalicoManager struct {
 	clientset kubernetes.Interface
 	dynamic   dynamic.Interface
@@ -27,7 +36,8 @@ type CalicoManager struct {
 	logChan   chan string
 }
 
-// NewCalicoManager creates a new CalicoManager instance
+// NewCalicoManager creates a new CalicoManager instance with the specified
+// Kubernetes clients and logger.
 func NewCalicoManager(clientset kubernetes.Interface, dynamicClient dynamic.Interface, logger io.Writer) *CalicoManager {
 	return &CalicoManager{
 		clientset: clientset,
@@ -37,13 +47,14 @@ func NewCalicoManager(clientset kubernetes.Interface, dynamicClient dynamic.Inte
 	}
 }
 
-// Logf logs formatted messages to the logger
+// Logf logs formatted messages to the logger using fmt.Sprintf formatting.
 func (cm *CalicoManager) Logf(format string, args ...any) {
 	if len(format) > 0 {
 		cm.Log(fmt.Sprintf(format, args...))
 	}
 }
 
+// Log logs a message to the configured logger and log channel.
 func (cm *CalicoManager) Log(message string) {
 	if len(message) == 0 {
 		return
@@ -56,6 +67,8 @@ func (cm *CalicoManager) Log(message string) {
 	}
 }
 
+// LogChan returns the log channel for receiving log messages.
+// Creates a new buffered channel if one doesn't exist.
 func (cm *CalicoManager) LogChan() chan string {
 	if cm.logChan == nil {
 		cm.logChan = make(chan string, 100) // Buffered channel for events
@@ -63,13 +76,19 @@ func (cm *CalicoManager) LogChan() chan string {
 	return cm.logChan
 }
 
+// Close closes the log channel and cleans up resources.
 func (cm *CalicoManager) Close() {
 	if cm.logChan != nil {
 		close(cm.logChan) // Close the events channel
 	}
 }
 
-// Install installs Calico using the operator-based installation method
+// Install installs Calico using the operator-based installation method.
+// This method:
+// 1. Fetches the latest stable Calico version
+// 2. Installs the Calico operator
+// 3. Waits for CRDs to be ready
+// 4. Applies custom resources
 func (cm *CalicoManager) Install(ctx context.Context) error {
 	latestVersion, err := githubversions.GetLatestStableSemverTag(ctx, "projectcalico", "calico")
 	if err != nil {
@@ -88,6 +107,8 @@ func (cm *CalicoManager) Install(ctx context.Context) error {
 	return nil
 }
 
+// applyAndLog applies Kubernetes manifests from a URL and logs the results.
+// Returns an error if any manifests fail to apply.
 func (cm *CalicoManager) applyAndLog(ctx context.Context, url string) error {
 	applier, err := k8sapplier.NewApplierWithClients(cm.clientset, cm.dynamic, nil)
 	if err != nil {
@@ -99,25 +120,28 @@ func (cm *CalicoManager) applyAndLog(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply kubernetes resources: %w", err)
 	}
-	error := false
+
+	hasErrors := false
 	for _, result := range results {
 		ns := result.Namespace
 		if ns != "" {
 			ns = ns + "/"
 		}
 		if result.Error != nil {
-			error = true
+			hasErrors = true
 			cm.Logf("[red]Error applying %s%s (%s): %v", ns, result.Name, result.Kind, result.Error)
 		} else {
 			cm.Logf("[white]Successfully %s: %s%s (%s)", result.Action, ns, result.Name, result.Kind)
 		}
 	}
-	if error {
+	if hasErrors {
 		return fmt.Errorf("some manifests failed to apply")
 	}
 	return nil
 }
 
+// GoldmaneWhiskerAvailable checks if the Tigera operator APIs for Goldmane and Whisker
+// resources are discoverable via the Kubernetes discovery client.
 func (cm *CalicoManager) GoldmaneWhiskerAvailable() (bool, error) {
 	// Use the discovery client to determine if the tigera secure specific APIs exist.
 	resources, err := cm.clientset.Discovery().ServerResourcesForGroupVersion("operator.tigera.io/v1")
@@ -138,6 +162,7 @@ func (cm *CalicoManager) GoldmaneWhiskerAvailable() (bool, error) {
 }
 
 // GoldmaneWhiskerAccessible checks if Goldmane and Whisker resources are actually accessible
+// by attempting to list them. This is more reliable than just checking discovery.
 func (cm *CalicoManager) GoldmaneWhiskerAccessible(ctx context.Context) (bool, error) {
 	// Check if we can actually access the resources, not just discover them
 	goldmaneAccessible := false
@@ -185,6 +210,7 @@ func (cm *CalicoManager) GoldmaneWhiskerAccessible(ctx context.Context) (bool, e
 }
 
 // WaitForGoldmaneWhiskerAvailable waits for Goldmane and Whisker resources to be available
+// via the discovery API. This checks if the resources are discoverable.
 func (cm *CalicoManager) WaitForGoldmaneWhiskerAvailable(ctx context.Context, timeout time.Duration) error {
 	cm.Logf("[white]Waiting for Goldmane and Whisker resources to be available...")
 
@@ -220,6 +246,7 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerAvailable(ctx context.Context, ti
 }
 
 // WaitForGoldmaneWhiskerAccessible waits for Goldmane and Whisker resources to be accessible
+// by attempting to list them. This ensures the resources are actually usable.
 func (cm *CalicoManager) WaitForGoldmaneWhiskerAccessible(ctx context.Context, timeout time.Duration) error {
 	cm.Logf("[white]Waiting for Goldmane and Whisker resources to be accessible...")
 
@@ -254,7 +281,8 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerAccessible(ctx context.Context, t
 	}
 }
 
-// WaitForGoldmaneWhiskerAvailableWithRetry waits for Goldmane and Whisker with retry mechanism
+// WaitForGoldmaneWhiskerAvailableWithRetry waits for Goldmane and Whisker resources
+// to be available with a retry mechanism and exponential backoff.
 func (cm *CalicoManager) WaitForGoldmaneWhiskerAvailableWithRetry(ctx context.Context, maxRetries int, initialBackoff time.Duration) error {
 	backoff := initialBackoff
 
@@ -284,7 +312,9 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerAvailableWithRetry(ctx context.Co
 	return fmt.Errorf("exceeded maximum retries waiting for Goldmane and Whisker resources")
 }
 
-// WaitForGoldmaneWhiskerCompletelyReady waits for Goldmane and Whisker resources to be both available and accessible
+// WaitForGoldmaneWhiskerCompletelyReady waits for Goldmane and Whisker resources to be
+// both available (discoverable) and accessible (usable). This is the most comprehensive
+// readiness check.
 func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReady(ctx context.Context, timeout time.Duration) error {
 	cm.Logf("[white]Waiting for Goldmane and Whisker resources to be completely ready...")
 
@@ -308,7 +338,8 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReady(ctx context.Conte
 	return nil
 }
 
-// WaitForGoldmaneWhiskerCompletelyReadyWithRetry waits for Goldmane and Whisker with retry mechanism
+// WaitForGoldmaneWhiskerCompletelyReadyWithRetry waits for Goldmane and Whisker resources
+// to be completely ready with a retry mechanism and exponential backoff.
 func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReadyWithRetry(ctx context.Context, maxRetries int, initialBackoff time.Duration) error {
 	backoff := initialBackoff
 
@@ -338,7 +369,9 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReadyWithRetry(ctx cont
 	return fmt.Errorf("exceeded maximum retries waiting for Goldmane and Whisker resources")
 }
 
-// installOperator installs the Calico operator and custom resources
+// installOperator installs the Calico operator and custom resources.
+// This method handles the complete operator installation process including
+// waiting for CRDs to be ready and applying custom resources.
 func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion string) error {
 	cm.Logf("[white]Installing Calico operator...")
 
@@ -383,150 +416,7 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 	return nil
 }
 
-// installCalicoInstance installs the Calico instance
-// func (cm *CalicoManager) installCalicoInstance(ctx context.Context, options *InstallOptions) error {
-// 	cm.Logf("Installing Calico instance...")
-//
-// 	// Generate and apply Calico instance manifest
-// 	instanceManifest := cm.generateCalicoInstanceManifest(options)
-// 	if err := cm.applyManifest(ctx, instanceManifest); err != nil {
-// 		return fmt.Errorf("failed to apply Calico instance manifest: %w", err)
-// 	}
-//
-// 	// Wait for Calico to be ready
-// 	if err := cm.waitForCalicoReady(ctx); err != nil {
-// 		return fmt.Errorf("calico failed to become ready: %w", err)
-// 	}
-//
-// 	cm.Logf("Calico instance installed successfully")
-// 	return nil
-// }
-
-// Upgrade upgrades Calico to a new version
-// func (cm *CalicoManager) Upgrade(ctx context.Context, options *UpgradeOptions) error {
-// 	if options == nil {
-// 		return fmt.Errorf("upgrade options cannot be nil")
-// 	}
-//
-// 	cm.Logf("Upgrading Calico to version %s", options.Version)
-//
-// 	// Backup current configuration if requested
-// 	if options.BackupBeforeUpgrade {
-// 		if err := cm.backupConfiguration(ctx); err != nil {
-// 			return fmt.Errorf("failed to backup configuration: %w", err)
-// 		}
-// 	}
-//
-// 	// Upgrade operator
-// 	if err := cm.upgradeOperator(ctx, options); err != nil {
-// 		return fmt.Errorf("failed to upgrade operator: %w", err)
-// 	}
-//
-// 	// Upgrade Calico instance
-// 	if err := cm.upgradeCalicoInstance(ctx, options); err != nil {
-// 		return fmt.Errorf("failed to upgrade Calico instance: %w", err)
-// 	}
-//
-// 	// Validate upgrade if requested
-// 	if options.ValidateAfterUpgrade {
-// 		if err := cm.validateUpgrade(ctx); err != nil {
-// 			return fmt.Errorf("upgrade validation failed: %w", err)
-// 		}
-// 	}
-//
-// 	cm.Logf("Calico upgrade completed successfully")
-// 	return nil
-// }
-//
-// // Uninstall uninstalls Calico
-// func (cm *CalicoManager) Uninstall(ctx context.Context, options *UninstallOptions) error {
-// 	if options == nil {
-// 		return fmt.Errorf("uninstall options cannot be nil")
-// 	}
-//
-// 	cm.Logf("Uninstalling Calico...")
-//
-// 	// Delete Calico instance
-// 	if err := cm.deleteCalicoInstance(ctx); err != nil {
-// 		return fmt.Errorf("failed to delete Calico instance: %w", err)
-// 	}
-//
-// 	// Delete operator
-// 	if err := cm.deleteOperator(ctx); err != nil {
-// 		return fmt.Errorf("failed to delete operator: %w", err)
-// 	}
-//
-// 	// Delete CRDs if requested
-// 	if options.RemoveCRDs {
-// 		if err := cm.deleteCRDs(ctx); err != nil {
-// 			return fmt.Errorf("failed to delete CRDs: %w", err)
-// 		}
-// 	}
-//
-// 	// Delete namespace if requested
-// 	if options.RemoveNamespace {
-// 		if err := cm.deleteNamespace(ctx); err != nil {
-// 			return fmt.Errorf("failed to delete namespace: %w", err)
-// 		}
-// 	}
-//
-// 	cm.Logf("Calico uninstallation completed successfully")
-// 	return nil
-// }
-
-// GetStatus returns the current status of Calico
-// func (cm *CalicoManager) GetStatus(ctx context.Context) (*CalicoStatus, error) {
-// 	cm.Logf("Getting Calico status...")
-//
-// 	status := &CalicoStatus{
-// 		Components:      make(map[string]ComponentStatus),
-// 		Nodes:           []NodeStatus{},
-// 		IPPools:         []IPPoolStatus{},
-// 		BGPPeers:        []BGPPeerStatus{},
-// 		NetworkPolicies: []PolicyStatus{},
-// 		LastUpdated:     time.Now(),
-// 	}
-//
-// 	// Check if Calico is installed
-// 	installed, version, err := cm.checkInstallation(ctx)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to check installation: %w", err)
-// 	}
-//
-// 	status.Installed = installed
-// 	status.Version = version
-//
-// 	if installed {
-// 		// Get component statuses
-// 		if err := cm.getComponentStatuses(ctx, status); err != nil {
-// 			return nil, fmt.Errorf("failed to get component statuses: %w", err)
-// 		}
-//
-// 		// Get node statuses
-// 		if err := cm.getNodeStatuses(ctx, status); err != nil {
-// 			return nil, fmt.Errorf("failed to get node statuses: %w", err)
-// 		}
-//
-// 		// Get IP pool statuses
-// 		if err := cm.getIPPoolStatuses(ctx, status); err != nil {
-// 			return nil, fmt.Errorf("failed to get IP pool statuses: %w", err)
-// 		}
-//
-// 		// Get BGP peer statuses
-// 		if err := cm.getBGPPeerStatuses(ctx, status); err != nil {
-// 			return nil, fmt.Errorf("failed to get BGP peer statuses: %w", err)
-// 		}
-//
-// 		// Get policy statuses
-// 		if err := cm.getPolicyStatuses(ctx, status); err != nil {
-// 			return nil, fmt.Errorf("failed to get policy statuses: %w", err)
-// 		}
-// 	}
-//
-// 	return status, nil
-// }
-
-// GetIPPools returns all IP pools
+// GetIPPools returns all IP pools configured in the cluster.
 func (cm *CalicoManager) GetIPPools(ctx context.Context) ([]*IPPool, error) {
 	cm.Logf("Getting IP pools...")
 
@@ -564,108 +454,7 @@ func (cm *CalicoManager) GetIPPools(ctx context.Context) ([]*IPPool, error) {
 	return ippools, nil
 }
 
-// CreateIPPool creates a new IP pool
-// func (cm *CalicoManager) CreateIPPool(ctx context.Context, pool *IPPool) error {
-// 	cm.Logf("Creating IP pool %s", pool.Name)
-//
-// 	manifest := cm.generateIPPoolManifest(pool)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to create IP pool: %w", err)
-// 	}
-//
-// 	cm.Logf("IP pool %s created successfully", pool.Name)
-// 	return nil
-// }
-//
-// // DeleteIPPool deletes an IP pool
-// func (cm *CalicoManager) DeleteIPPool(ctx context.Context, name string) error {
-// 	cm.Logf("Deleting IP pool %s", name)
-//
-// 	gvr := schema.GroupVersionResource{
-// 		Group:    "crd.projectcalico.org",
-// 		Version:  "v1",
-// 		Resource: "ippools",
-// 	}
-//
-// 	if err := cm.dynamic.Resource(gvr).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
-// 		return fmt.Errorf("failed to delete IP pool: %w", err)
-// 	}
-//
-// 	cm.Logf("IP pool %s deleted successfully", name)
-// 	return nil
-// }
-
-// GetNetworkPolicies returns network policies for a namespace
-// func (cm *CalicoManager) GetNetworkPolicies(ctx context.Context, namespace string) ([]*NetworkPolicy, error) {
-// 	cm.Logf("Getting network policies for namespace %s", namespace)
-//
-// 	gvr := schema.GroupVersionResource{
-// 		Group:    "crd.projectcalico.org",
-// 		Version:  "v1",
-// 		Resource: "networkpolicies",
-// 	}
-//
-// 	list, err := cm.dynamic.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to list network policies: %w", err)
-// 	}
-//
-// 	var policies []*NetworkPolicy
-// 	for _, item := range list.Items {
-// 		spec := item.Object["spec"].(map[string]any)
-//
-// 		policy := &NetworkPolicy{
-// 			Name:      item.GetName(),
-// 			Namespace: item.GetNamespace(),
-// 		}
-//
-// 		if ingress, ok := spec["ingress"].([]any); ok {
-// 			policy.IngressRules = cm.parseRules(ingress)
-// 		}
-// 		if egress, ok := spec["egress"].([]any); ok {
-// 			policy.EgressRules = cm.parseRules(egress)
-// 		}
-//
-// 		policies = append(policies, policy)
-// 	}
-//
-// 	return policies, nil
-// }
-
-// CreateNetworkPolicy creates a new network policy
-// func (cm *CalicoManager) CreateNetworkPolicy(ctx context.Context, policy *NetworkPolicy) error {
-// 	cm.Logf("Creating network policy %s", policy.Name)
-//
-// 	manifest := cm.generateNetworkPolicyManifest(policy)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to create network policy: %w", err)
-// 	}
-//
-// 	cm.Logf("Network policy %s created successfully", policy.Name)
-// 	return nil
-// }
-//
-// // DeleteNetworkPolicy deletes a network policy
-// func (cm *CalicoManager) DeleteNetworkPolicy(ctx context.Context, name, namespace string) error {
-// 	cm.Logf("Deleting network policy %s from namespace %s", name, namespace)
-//
-// 	gvr := schema.GroupVersionResource{
-// 		Group:    "crd.projectcalico.org",
-// 		Version:  "v1",
-// 		Resource: "networkpolicies",
-// 	}
-//
-// 	if err := cm.dynamic.Resource(gvr).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
-// 		return fmt.Errorf("failed to delete network policy: %w", err)
-// 	}
-//
-// 	cm.Logf("Network policy %s deleted successfully", name)
-// 	return nil
-// }
-
-// GetBGPPeers returns BGP peers
+// GetBGPPeers returns all BGP peers configured in the cluster.
 func (cm *CalicoManager) GetBGPPeers(ctx context.Context) ([]*BGPPeer, error) {
 	cm.Logf("Getting BGP peers...")
 
@@ -701,245 +490,9 @@ func (cm *CalicoManager) GetBGPPeers(ctx context.Context) ([]*BGPPeer, error) {
 	return peers, nil
 }
 
-// CreateBGPPeer creates a new BGP peer
-// func (cm *CalicoManager) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-// 	cm.Logf("Creating BGP peer %s", peer.Name)
-//
-// 	manifest := cm.generateBGPPeerManifest(peer)
-//
-// 	if err := cm.applyManifest(ctx, manifest); err != nil {
-// 		return fmt.Errorf("failed to create BGP peer: %w", err)
-// 	}
-//
-// 	cm.Logf("BGP peer %s created successfully", peer.Name)
-// 	return nil
-// }
-//
-// // DeleteBGPPeer deletes a BGP peer
-// func (cm *CalicoManager) DeleteBGPPeer(ctx context.Context, name string) error {
-// 	cm.Logf("Deleting BGP peer %s", name)
-//
-// 	gvr := schema.GroupVersionResource{
-// 		Group:    "crd.projectcalico.org",
-// 		Version:  "v1",
-// 		Resource: "bgppeers",
-// 	}
-//
-// 	if err := cm.dynamic.Resource(gvr).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
-// 		return fmt.Errorf("failed to delete BGP peer: %w", err)
-// 	}
-//
-// 	cm.Logf("BGP peer %s deleted successfully", name)
-// 	return nil
-// }
-
-// WaitForReady waits for Calico components to be ready
-// func (cm *CalicoManager) WaitForReady(ctx context.Context, timeout time.Duration) error {
-// 	cm.Logf("Waiting for Calico to be ready (timeout: %v)...", timeout)
-//
-// 	deadline := time.Now().Add(timeout)
-// 	ticker := time.NewTicker(10 * time.Second)
-// 	defer ticker.Stop()
-//
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return ctx.Err()
-// 		case <-ticker.C:
-// 			if time.Now().After(deadline) {
-// 				return fmt.Errorf("timeout waiting for Calico to be ready")
-// 			}
-//
-// 			ready, err := cm.checkCalicoReady(ctx)
-// 			if err != nil {
-// 				cm.Logf("Error checking Calico readiness: %v", err)
-// 				continue
-// 			}
-//
-// 			if ready {
-// 				cm.Logf("Calico is ready")
-// 				return nil
-// 			}
-// 		}
-// 	}
-// }
-
-// HealthCheck performs a comprehensive health check of Calico
-// func (cm *CalicoManager) HealthCheck(ctx context.Context) (*HealthCheckResult, error) {
-// 	cm.Logf("Performing Calico health check...")
-//
-// 	result := &HealthCheckResult{
-// 		LastChecked: time.Now(),
-// 		Overall:     true,
-// 		Components:  make(map[string]bool),
-// 		Nodes:       make(map[string]bool),
-// 		BGP:         make(map[string]bool),
-// 		Errors:      []string{},
-// 	}
-//
-// 	// Check operator status
-// 	if err := cm.checkOperatorHealth(ctx, result); err != nil {
-// 		result.Overall = false
-// 		result.Errors = append(result.Errors, fmt.Sprintf("Operator health check failed: %v", err))
-// 	}
-//
-// 	// Check Calico instance status
-// 	if err := cm.checkInstanceHealth(ctx, result); err != nil {
-// 		result.Overall = false
-// 		result.Errors = append(result.Errors, fmt.Sprintf("Instance health check failed: %v", err))
-// 	}
-//
-// 	// Check node status
-// 	if err := cm.checkNodeHealth(ctx, result); err != nil {
-// 		result.Overall = false
-// 		result.Errors = append(result.Errors, fmt.Sprintf("Node health check failed: %v", err))
-// 	}
-//
-// 	// Check BGP status
-// 	if err := cm.checkBGPHealth(ctx, result); err != nil {
-// 		result.Overall = false
-// 		result.Errors = append(result.Errors, fmt.Sprintf("BGP health check failed: %v", err))
-// 	}
-//
-// 	if result.Overall {
-// 		cm.Logf("Calico health check passed")
-// 	} else {
-// 		cm.Logf("Calico health check failed with %d errors", len(result.Errors))
-// 	}
-//
-// 	return result, nil
-// }
-//
-// // ApplyResource applies a Calico resource from YAML
-// func (cm *CalicoManager) ApplyResource(ctx context.Context, yamlContent string) error {
-// 	cm.Logf("Applying Calico resource from YAML")
-//
-// 	// Parse YAML into unstructured objects
-// 	decoder := yaml.NewYAMLOrJSONDecoder(strings.NewReader(yamlContent), 4096)
-//
-// 	for {
-// 		var obj unstructured.Unstructured
-// 		err := decoder.Decode(&obj)
-// 		if err == io.EOF {
-// 			break
-// 		}
-// 		if err != nil {
-// 			return fmt.Errorf("failed to decode YAML: %w", err)
-// 		}
-//
-// 		// Apply the resource
-// 		if err := cm.applyUnstructured(ctx, &obj); err != nil {
-// 			return fmt.Errorf("failed to apply resource %s: %w", obj.GetName(), err)
-// 		}
-// 	}
-//
-// 	cm.Logf("Calico resource applied successfully")
-// 	return nil
-// }
-
-// Helper methods (implementations would be added here)
-//
-//	func (cm *CalicoManager) applyManifest(ctx context.Context, manifest string) error {
-//		// Implementation would apply manifest to cluster
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) waitForOperatorReady(ctx context.Context) error {
-//		// Implementation would wait for operator to be ready
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) waitForCalicoReady(ctx context.Context) error {
-//		// Implementation would wait for Calico to be ready
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) backupConfiguration(ctx context.Context) error {
-//		// Implementation would backup current configuration
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) upgradeOperator(ctx context.Context, options *UpgradeOptions) error {
-//		// Implementation would upgrade operator
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) upgradeCalicoInstance(ctx context.Context, options *UpgradeOptions) error {
-//		// Implementation would upgrade Calico instance
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) validateUpgrade(ctx context.Context) error {
-//		// Implementation would validate upgrade
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) deleteCalicoInstance(ctx context.Context) error {
-//		// Implementation would delete Calico instance
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) deleteOperator(ctx context.Context) error {
-//		// Implementation would delete operator
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) deleteCRDs(ctx context.Context) error {
-//		// Implementation would delete CRDs
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) deleteNamespace(ctx context.Context) error {
-//		// Implementation would delete namespace
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) checkInstallation(ctx context.Context) (bool, string, error) {
-//		// Implementation would check if Calico is installed
-//		return false, "", nil
-//	}
-//
-//	func (cm *CalicoManager) getComponentStatuses(ctx context.Context, status *CalicoStatus) error {
-//		// Implementation would get component statuses
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) getNodeStatuses(ctx context.Context, status *CalicoStatus) error {
-//		// Implementation would get node statuses
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) getIPPoolStatuses(ctx context.Context, status *CalicoStatus) error {
-//		// Implementation would get IP pool statuses
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) getBGPPeerStatuses(ctx context.Context, status *CalicoStatus) error {
-//		// Implementation would get BGP peer statuses
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) getPolicyStatuses(ctx context.Context, status *CalicoStatus) error {
-//		// Implementation would get policy statuses
-//		return nil
-//	}
-//
-//	func (cm *CalicoManager) parseRules(rules []any) []Rule {
-//		// Implementation would parse rules
-//		return []Rule{}
-//	}
-//
-//	func (cm *CalicoManager) checkCalicoReady(ctx context.Context) (bool, error) {
-//		// Implementation would check if Calico is ready
-//		return false, nil
-//	}
-//
-//	func (cm *CalicoManager) checkOperatorHealth(ctx context.Context, result *HealthCheckResult) error {
-//		// Implementation would check operator health
-//		return nil
-//	}
-
-// waitForCalicoCRDs waits for all Calico CRDs to be created by the operator
+// waitForCalicoCRDs waits for all Calico CRDs to be created by the operator.
+// This includes waiting for CRDs to be established, accessible, and have
+// REST mappings available.
 func (cm *CalicoManager) waitForCalicoCRDs(ctx context.Context) error {
 	cm.Logf("[white]Waiting for Calico CRDs to be created...")
 
@@ -1001,8 +554,8 @@ func (cm *CalicoManager) waitForCalicoCRDs(ctx context.Context) error {
 	return nil
 }
 
-// waitForRESTMappingsAvailable waits for the API server to have REST mappings available for the CRDs
-// This is critical to prevent "no matches for kind" errors
+// waitForRESTMappingsAvailable waits for the API server to have REST mappings
+// available for the CRDs. This is critical to prevent "no matches for kind" errors.
 func (cm *CalicoManager) waitForRESTMappingsAvailable(ctx context.Context, crdNames []string) error {
 	cm.Logf("[white]Waiting for REST mappings to be available for all CRDs...")
 
@@ -1022,7 +575,7 @@ func (cm *CalicoManager) waitForRESTMappingsAvailable(ctx context.Context, crdNa
 	return nil
 }
 
-// waitForCRDReady waits for a specific CRD to be completely ready and established
+// waitForCRDReady waits for a specific CRD to be completely ready and established.
 func (cm *CalicoManager) waitForCRDReady(ctx context.Context, crdName string, timeout time.Duration) error {
 	cc := cmdctx.CmdCtxFromContext(ctx)
 	apiextensionsClient, err := apiextensionsclientset.NewForConfig(cc.GetK8sConfig())
@@ -1056,7 +609,7 @@ func (cm *CalicoManager) waitForCRDReady(ctx context.Context, crdName string, ti
 	return nil
 }
 
-// waitForSingleCRDRESTMapping waits for a single CRD to have REST mappings available
+// waitForSingleCRDRESTMapping waits for a single CRD to have REST mappings available.
 func (cm *CalicoManager) waitForSingleCRDRESTMapping(ctx context.Context, crdName string, timeout time.Duration) error {
 	// Parse the CRD name to get group, version, and resource
 	parts := strings.Split(crdName, ".")
@@ -1112,7 +665,7 @@ func (cm *CalicoManager) waitForSingleCRDRESTMapping(ctx context.Context, crdNam
 	}
 }
 
-// verifyCRDAccessibility verifies that a CRD is accessible by the API server
+// verifyCRDAccessibility verifies that a CRD is accessible by the API server.
 func (cm *CalicoManager) verifyCRDAccessibility(ctx context.Context, crdName string) error {
 	// Parse the CRD name to get group, version, and resource
 	// Format: resource.group
@@ -1175,8 +728,8 @@ func (cm *CalicoManager) verifyAllCRDsAccessible(ctx context.Context, crdNames [
 	return nil
 }
 
-// waitForAPIServerReady waits for the API server to be ready to serve the new CRDs
-// This is often necessary after CRDs are created to ensure REST mappings are available
+// waitForAPIServerReady waits for the API server to be ready to serve the new CRDs.
+// This is often necessary after CRDs are created to ensure REST mappings are available.
 func (cm *CalicoManager) waitForAPIServerReady(ctx context.Context) error {
 	cm.Logf("[white]Waiting for API server to be ready to serve new CRDs...")
 
@@ -1194,64 +747,8 @@ func (cm *CalicoManager) waitForAPIServerReady(ctx context.Context) error {
 	return nil
 }
 
-// // waitForSingleCRD waits for a single CRD to become available
-// func (cm *CalicoManager) waitForSingleCRD(ctx context.Context, gvr schema.GroupVersionResource) error {
-// 	cm.Logf("[white]Checking CRD: %s", gvr.Resource)
-//
-// 	// Try to list the resource to check if the CRD exists
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return fmt.Errorf("context cancelled while waiting for CRD %s: %w", gvr.Resource, ctx.Err())
-// 		default:
-// 			// Attempt to list the resource
-// 			_, err := cm.dynamic.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
-// 			if err == nil {
-// 				cm.Logf("[green]CRD %s is available", gvr.Resource)
-// 				return nil
-// 			}
-//
-// 			// If it's a "not found" error, the CRD doesn't exist yet
-// 			if errors.IsNotFound(err) ||
-// 				(strings.Contains(err.Error(), "no matches for kind") ||
-// 					strings.Contains(err.Error(), "the server could not find the requested resource")) {
-// 				cm.Logf("[yellow]CRD %s not yet available, waiting...", gvr.Resource)
-// 				// Wait a bit before retrying
-// 				select {
-// 				case <-ctx.Done():
-// 					return fmt.Errorf("context cancelled while waiting for CRD %s: %w", gvr.Resource, ctx.Err())
-// 				case <-time.After(2 * time.Second):
-// 					continue
-// 				}
-// 			}
-//
-// 			// For other errors, return immediately
-// 			return fmt.Errorf("unexpected error checking CRD %s: %w", gvr.Resource, err)
-// 		}
-// 	}
-// }
-
-// func (cm *CalicoManager) checkInstanceHealth(ctx context.Context, result *HealthCheckResult) error {
-// 	// Implementation would check instance health
-// 	return nil
-// }
-//
-// func (cm *CalicoManager) checkNodeHealth(ctx context.Context, result *HealthCheckResult) error {
-// 	// Implementation would check node health
-// 	return nil
-// }
-//
-// func (cm *CalicoManager) checkBGPHealth(ctx context.Context, result *HealthCheckResult) error {
-// 	// Implementation would check BGP health
-// 	return nil
-// }
-//
-// func (cm *CalicoManager) applyUnstructured(ctx context.Context, obj *unstructured.Unstructured) error {
-// 	// Implementation would apply unstructured object
-// 	return nil
-// }
-
-// DiagnoseCRDIssues provides detailed diagnostic information about CRD readiness issues
+// DiagnoseCRDIssues provides detailed diagnostic information about CRD readiness issues.
+// This is useful for troubleshooting when CRDs are not becoming ready as expected.
 func (cm *CalicoManager) DiagnoseCRDIssues(ctx context.Context) error {
 	cm.Logf("[white]Diagnosing CRD readiness issues...")
 
@@ -1379,7 +876,9 @@ func (cm *CalicoManager) DiagnoseCRDIssues(ctx context.Context) error {
 	return nil
 }
 
-// DiagnoseGoldmaneWhiskerIssues provides detailed diagnostic information about Goldmane and Whisker resource issues
+// DiagnoseGoldmaneWhiskerIssues provides detailed diagnostic information about
+// Goldmane and Whisker resource issues. This is useful for troubleshooting
+// when these resources are not becoming available or accessible.
 func (cm *CalicoManager) DiagnoseGoldmaneWhiskerIssues(ctx context.Context) error {
 	cm.Logf("[white]Diagnosing Goldmane and Whisker resource issues...")
 
