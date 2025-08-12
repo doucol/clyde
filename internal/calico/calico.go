@@ -88,7 +88,13 @@ func (cm *CalicoManager) Install(ctx context.Context) error {
 	return nil
 }
 
-func (cm *CalicoManager) applyAndLog(ctx context.Context, applier *k8sapplier.Applier, url string) error {
+func (cm *CalicoManager) applyAndLog(ctx context.Context, url string) error {
+	applier, err := k8sapplier.NewApplierWithClients(cm.clientset, cm.dynamic, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create k8s applier: %w", err)
+	}
+	defer applier.Close()
+
 	results, err := applier.ApplyFromURL(ctx, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to apply kubernetes resources: %w", err)
@@ -289,13 +295,13 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReady(ctx context.Conte
 	// First wait for the resources to be available (discoverable)
 	cm.Logf("[white]Step 1: Waiting for Goldmane and Whisker resources to be discoverable...")
 	if err := cm.WaitForGoldmaneWhiskerAvailable(ctxWithTimeout, timeout/2); err != nil {
-		return fmt.Errorf("Goldmane and Whisker resources not discoverable: %w", err)
+		return fmt.Errorf("goldmane and Whisker resources not discoverable: %w", err)
 	}
 
 	// Then wait for them to be accessible (usable)
 	cm.Logf("[white]Step 2: Waiting for Goldmane and Whisker resources to be accessible...")
 	if err := cm.WaitForGoldmaneWhiskerAccessible(ctxWithTimeout, timeout/2); err != nil {
-		return fmt.Errorf("Goldmane and Whisker resources not accessible: %w", err)
+		return fmt.Errorf("goldmane and Whisker resources not accessible: %w", err)
 	}
 
 	cm.Logf("[green]Goldmane and Whisker resources are completely ready!")
@@ -337,15 +343,9 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 	cc := cmdctx.CmdCtxFromContext(ctx)
 	cm.Logf("[white]Installing Calico operator...")
 
-	applier, err := k8sapplier.NewApplierWithClients(cm.clientset, cm.dynamic, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create k8s applier: %w", err)
-	}
-	defer applier.Close()
-
 	cm.Logf("[white]Applying Calico operator manifests from version %s", latestVersion)
 	murl := fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/tigera-operator.yaml", latestVersion)
-	if err := cm.applyAndLog(ctx, applier, murl); err != nil {
+	if err := cm.applyAndLog(ctx, murl); err != nil {
 		cm.Logf("[red]Failed to install Calico operator: %v", err)
 		return err
 	}
@@ -376,7 +376,7 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 
 	// Wait for Tigera operator to be ready
 	cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
-	err = cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
+	err := cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
 	if err != nil {
 		cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
 		return err
@@ -384,11 +384,20 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 
 	cm.Logf("[white]Applying Calico custom resources from version %s", latestVersion)
 	murl = fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latestVersion)
-	if err := cm.applyAndLog(ctx, applier, murl); err != nil {
-		cm.Logf("[red]Failed to apply custom resources for Calico operator: %v", err)
-		return err
+	maxRetries = 100
+	success := false
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if err := cm.applyAndLog(ctx, murl); err != nil {
+			time.Sleep(5 * time.Second) // Wait before retrying
+		} else {
+			success = true
+			cm.Log("[green]Successfully applied custom resources for Calico operator")
+			break
+		}
 	}
-
+	if !success {
+		return fmt.Errorf("failed to apply custom resources for Calico operator after %d attempts", maxRetries)
+	}
 	return nil
 }
 
