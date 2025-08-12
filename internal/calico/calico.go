@@ -340,7 +340,6 @@ func (cm *CalicoManager) WaitForGoldmaneWhiskerCompletelyReadyWithRetry(ctx cont
 
 // installOperator installs the Calico operator and custom resources
 func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion string) error {
-	cc := cmdctx.CmdCtxFromContext(ctx)
 	cm.Logf("[white]Installing Calico operator...")
 
 	cm.Logf("[white]Applying Calico operator manifests from version %s", latestVersion)
@@ -375,28 +374,19 @@ func (cm *CalicoManager) installOperator(ctx context.Context, latestVersion stri
 	}
 
 	// Wait for Tigera operator to be ready
-	cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
-	err := cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
-	if err != nil {
-		cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
-		return err
-	}
+	// cm.Log("[white]Waiting for all Tigera operator statuses to be ready")
+	// err := cm.WaitForTigeraOperatorAvailable(ctx, cc.Clientset(), cc.ClientDyn(), 5*time.Minute)
+	// if err != nil {
+	// 	cm.Logf("[red]Tigera operator did not become ready: %s", err.Error())
+	// 	return err
+	// }
 
 	cm.Logf("[white]Applying Calico custom resources from version %s", latestVersion)
 	murl = fmt.Sprintf("https://raw.githubusercontent.com/projectcalico/calico/%s/manifests/custom-resources.yaml", latestVersion)
-	maxRetries = 100
-	success := false
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if err := cm.applyAndLog(ctx, murl); err != nil {
-			time.Sleep(5 * time.Second) // Wait before retrying
-		} else {
-			success = true
-			cm.Log("[green]Successfully applied custom resources for Calico operator")
-			break
-		}
-	}
-	if !success {
-		return fmt.Errorf("failed to apply custom resources for Calico operator after %d attempts", maxRetries)
+	if err := cm.applyAndLog(ctx, murl); err != nil {
+		return err
+	} else {
+		cm.Log("[green]Successfully applied custom resources for Calico operator")
 	}
 	return nil
 }
