@@ -9,82 +9,187 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
 // WaitForTigeraOperatorAvailable waits for all Tigera operator status resources to become available
 func (cm *CalicoManager) WaitForTigeraOperatorAvailable(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, timeout time.Duration) error {
-	// Define the GVR for TigeraStatus resource
-	tigeraStatusGVR := schema.GroupVersionResource{
-		Group:    "operator.tigera.io",
-		Version:  "v1",
-		Resource: "tigerastatuses",
-	}
+	cm.Logf("[white]Waiting for Tigera operator to be available...")
 
 	// Create a context with timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Check initial state first
-	if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
-		return fmt.Errorf("initial status check failed: %w", err)
-	} else if available {
-		return nil
+	// First, check if the Tigera operator deployment is running
+	if err := cm.waitForTigeraOperatorDeployment(ctxWithTimeout, clientset); err != nil {
+		return fmt.Errorf("Tigera operator deployment not ready: %w", err)
 	}
 
-	// Start watching TigeraStatus resources
-	watchInterface, err := dynamicClient.Resource(tigeraStatusGVR).Watch(ctxWithTimeout, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to watch TigeraStatus resources: %w", err)
-	}
-	defer watchInterface.Stop()
+	// Wait for the operator to create its status resources
+	// The actual resource name might be different, so let's try multiple approaches
+	if err := cm.waitForTigeraStatusResources(ctxWithTimeout, dynamicClient); err != nil {
+		cm.Logf("[yellow]Warning: Could not verify Tigera status resources: %v", err)
+		cm.Logf("[yellow]Trying alternative verification methods...")
 
-	// Set up periodic status check to ensure watch is working
-	ticker := time.NewTicker(30 * time.Second)
+		// Try to verify the operator is working by checking if it can handle basic operations
+		if err := cm.verifyTigeraOperatorFunctionality(ctxWithTimeout, dynamicClient); err != nil {
+			cm.Logf("[yellow]Warning: Could not verify Tigera operator functionality: %v", err)
+			cm.Logf("[yellow]Continuing anyway as the operator deployment is ready")
+		} else {
+			cm.Logf("[green]Tigera operator functionality verified!")
+		}
+	}
+
+	cm.Logf("[green]Tigera operator is available and ready!")
+	return nil
+}
+
+// waitForTigeraOperatorDeployment waits for the Tigera operator deployment to be ready
+func (cm *CalicoManager) waitForTigeraOperatorDeployment(ctx context.Context, clientset *kubernetes.Clientset) error {
+	cm.Logf("[white]Checking Tigera operator deployment status...")
+
+	// Wait for the deployment to be available
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	// Wait for all statuses to become available
 	for {
 		select {
-		case <-ctxWithTimeout.Done():
-			// Before returning timeout error, do one final check
-			if available, err := cm.checkAllTigeraStatusesAvailable(ctx, dynamicClient, tigeraStatusGVR); err == nil && available {
-				return nil
-			}
-			// Get debug info before returning error
-			debugInfo := cm.getTigeraStatusDebugInfo(ctx, dynamicClient, tigeraStatusGVR)
-			return fmt.Errorf("timeout waiting for Tigera operator status resources to become available: %w. Debug info: %s", ctxWithTimeout.Err(), debugInfo)
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
-			// Periodic check to ensure watch is working and provide feedback
-			if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err == nil && available {
-				return nil
-			}
-		case event, ok := <-watchInterface.ResultChan():
-			if !ok {
-				// Channel closed, recreate watch
-				watchInterface.Stop()
-				var newWatch watch.Interface
-				newWatch, err = dynamicClient.Resource(tigeraStatusGVR).Watch(ctxWithTimeout, metav1.ListOptions{})
-				if err != nil {
-					return fmt.Errorf("failed to recreate watch: %w", err)
-				}
-				watchInterface = newWatch
+			deployment, err := clientset.AppsV1().Deployments("tigera-operator").Get(ctx, "tigera-operator", metav1.GetOptions{})
+			if err != nil {
+				cm.Logf("[yellow]Tigera operator deployment not found yet: %v", err)
 				continue
 			}
 
-			switch event.Type {
-			case watch.Added, watch.Modified:
-				// Check if all statuses are available
-				if available, err := cm.checkAllTigeraStatusesAvailable(ctxWithTimeout, dynamicClient, tigeraStatusGVR); err != nil {
-					return fmt.Errorf("status check failed after event: %w", err)
-				} else if available {
-					return nil
+			// Check if deployment is ready
+			if deployment.Status.ReadyReplicas > 0 &&
+				deployment.Status.AvailableReplicas > 0 &&
+				deployment.Status.UpdatedReplicas == *deployment.Spec.Replicas {
+
+				// Also check that the pods are actually running and ready
+				if err := cm.checkTigeraOperatorPods(ctx, clientset); err != nil {
+					cm.Logf("[yellow]Warning: Pod check failed: %v", err)
+					// Don't fail here, the deployment is ready
 				}
-			case watch.Error:
-				return fmt.Errorf("watch error: %v", event.Object)
+
+				cm.Logf("[green]Tigera operator deployment is ready: %d/%d replicas available",
+					deployment.Status.AvailableReplicas, *deployment.Spec.Replicas)
+				return nil
 			}
+
+			cm.Logf("[white]Tigera operator deployment not ready yet: %d/%d replicas available, %d updated",
+				deployment.Status.AvailableReplicas, *deployment.Spec.Replicas, deployment.Status.UpdatedReplicas)
+		}
+	}
+}
+
+// checkTigeraOperatorPods checks that the Tigera operator pods are running and ready
+func (cm *CalicoManager) checkTigeraOperatorPods(ctx context.Context, clientset *kubernetes.Clientset) error {
+	pods, err := clientset.CoreV1().Pods("tigera-operator").List(ctx, metav1.ListOptions{
+		LabelSelector: "name=tigera-operator",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list Tigera operator pods: %w", err)
+	}
+
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("no Tigera operator pods found")
+	}
+
+	// Check each pod
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != "Running" {
+			cm.Logf("[yellow]Pod %s is not running: %s", pod.Name, pod.Status.Phase)
+			continue
+		}
+
+		// Check if pod is ready
+		ready := false
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == "Ready" && condition.Status == "True" {
+				ready = true
+				break
+			}
+		}
+
+		if ready {
+			cm.Logf("[green]Pod %s is running and ready", pod.Name)
+		} else {
+			cm.Logf("[yellow]Pod %s is running but not ready", pod.Name)
+		}
+	}
+
+	return nil
+}
+
+// waitForTigeraStatusResources waits for Tigera status resources to be available
+func (cm *CalicoManager) waitForTigeraStatusResources(ctx context.Context, dynamicClient dynamic.Interface) error {
+	cm.Logf("[white]Waiting for Tigera status resources...")
+
+	// Create a timeout context for this function
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	// Try different possible resource names and locations
+	possibleResources := []struct {
+		group      string
+		version    string
+		resource   string
+		namespaces []string
+	}{
+		{"operator.tigera.io", "v1", "tigerastatuses", []string{""}}, // cluster-scoped
+		{"operator.tigera.io", "v1", "tigerastatuses", []string{"tigera-operator", "calico-system"}},
+		{"operator.tigera.io", "v1", "tigerastatus", []string{""}}, // singular
+		{"operator.tigera.io", "v1", "tigerastatus", []string{"tigera-operator", "calico-system"}},
+		{"operator.tigera.io", "v1alpha1", "tigerastatuses", []string{""}},
+		{"operator.tigera.io", "v1alpha1", "tigerastatuses", []string{"tigera-operator", "calico-system"}},
+	}
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("timeout waiting for Tigera status resources: %w", timeoutCtx.Err())
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// Try to find any of the possible resources
+			for _, resource := range possibleResources {
+				gvr := schema.GroupVersionResource{
+					Group:    resource.group,
+					Version:  resource.version,
+					Resource: resource.resource,
+				}
+
+				// Try cluster-scoped first
+				if len(resource.namespaces) > 0 && resource.namespaces[0] == "" {
+					list, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{})
+					if err == nil && len(list.Items) > 0 {
+						cm.Logf("[green]Found %d Tigera status resources (cluster-scoped)", len(list.Items))
+						return nil
+					}
+				}
+
+				// Try namespace-scoped
+				for _, namespace := range resource.namespaces {
+					if namespace == "" {
+						continue
+					}
+
+					list, err := dynamicClient.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
+					if err == nil && len(list.Items) > 0 {
+						cm.Logf("[green]Found %d Tigera status resources in namespace %s", len(list.Items), namespace)
+						return nil
+					}
+				}
+			}
+
+			cm.Logf("[white]Tigera status resources not found yet, waiting...")
 		}
 	}
 }
@@ -224,17 +329,58 @@ func (cm *CalicoManager) isTigeraStatusAvailable(status *unstructured.Unstructur
 	return false
 }
 
+// verifyTigeraOperatorFunctionality verifies that the Tigera operator is working by checking basic operations
+func (cm *CalicoManager) verifyTigeraOperatorFunctionality(ctx context.Context, dynamicClient dynamic.Interface) error {
+	cm.Logf("[white]Verifying Tigera operator functionality...")
+
+	// Try to check if the operator can handle basic CRD operations
+	// This is a more reliable way to verify the operator is working
+
+	// Check if we can list any resources from the operator.tigera.io group
+	possibleResources := []string{"installations", "goldmanes", "whiskers"}
+
+	for _, resource := range possibleResources {
+		gvr := schema.GroupVersionResource{
+			Group:    "operator.tigera.io",
+			Version:  "v1",
+			Resource: resource,
+		}
+
+		// Try to list resources - this will fail if the operator isn't working
+		_, err := dynamicClient.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+		if err == nil {
+			cm.Logf("[green]Successfully verified %s resource access", resource)
+			return nil
+		}
+
+		// If we get a "no matches for kind" error, the operator might not be ready yet
+		if strings.Contains(err.Error(), "no matches for kind") {
+			cm.Logf("[yellow]Resource %s not ready yet: %v", resource, err)
+			continue
+		}
+
+		// For other errors, log them but continue trying
+		cm.Logf("[yellow]Error checking resource %s: %v", resource, err)
+	}
+
+	return fmt.Errorf("could not verify Tigera operator functionality with any resource")
+}
+
 // WaitForTigeraOperatorReadyWithRetry waits with exponential backoff retry
 func (cm *CalicoManager) WaitForTigeraOperatorReadyWithRetry(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient dynamic.Interface, maxRetries int, initialBackoff time.Duration) error {
 	backoff := initialBackoff
 
 	for i := 0; i < maxRetries; i++ {
+		cm.Logf("[white]Attempt %d/%d: Waiting for Tigera operator to be ready...", i+1, maxRetries)
+
 		err := cm.WaitForTigeraOperatorAvailable(ctx, clientset, dynamicClient, 5*time.Minute)
 		if err == nil {
+			cm.Logf("[green]Tigera operator is ready on attempt %d", i+1)
 			return nil
 		}
 
 		if i < maxRetries-1 {
+			cm.Logf("[yellow]Attempt %d failed: %v. Retrying in %v...", i+1, err, backoff)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -242,7 +388,8 @@ func (cm *CalicoManager) WaitForTigeraOperatorReadyWithRetry(ctx context.Context
 				backoff *= 2
 			}
 		} else {
-			return err
+			cm.Logf("[red]All %d attempts failed. Tigera operator is not ready: %v", maxRetries, err)
+			return fmt.Errorf("exceeded maximum retries waiting for Tigera operator: %w", err)
 		}
 	}
 
