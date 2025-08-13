@@ -51,7 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logFile, "logfile", logger.GetDefaultLogFile(), "The log file to use")
 
 	// Add all root commands
-	rootCmd.AddCommand(aboutCmd, versionCmd, clearCmd)
+	rootCmd.AddCommand(aboutCmd, versionCmd, clearCmd, mcpCmd)
 }
 
 func Execute() int {
@@ -83,7 +83,9 @@ func Execute() int {
 	if err := rootCmd.Execute(); err != nil {
 		return -1
 	}
-	defer redirectCleanup()
+	if redirectCleanup != nil {
+		defer redirectCleanup()
+	}
 	return 0
 }
 
