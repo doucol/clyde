@@ -83,7 +83,9 @@ func Execute() int {
 	if err := rootCmd.Execute(); err != nil {
 		return -1
 	}
-	defer redirectCleanup()
+	if redirectCleanup != nil {
+		defer redirectCleanup()
+	}
 	return 0
 }
 
