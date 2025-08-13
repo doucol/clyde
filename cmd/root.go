@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"errors"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -56,9 +57,15 @@ func init() {
 func Execute() int {
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
+	var redirectCleanup func()
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		initLogger()
+		var err error
+		logger := initLogger()
+		redirectCleanup, err = redirectToLogger(logger)
+		if err != nil {
+			panic(err)
+		}
 		// This new context contains our CmdContext, accessible from every cmd func
 		//   - the CmdContext also contains the Cancel func which in turn
 		//   calls 'cancel()' on the context triggering app shutdown everywhere
@@ -76,10 +83,11 @@ func Execute() int {
 	if err := rootCmd.Execute(); err != nil {
 		return -1
 	}
+	defer redirectCleanup()
 	return 0
 }
 
-func initLogger() {
+func initLogger() io.Writer {
 	logger.SetLogFile(logFile)
 	switch logLevel {
 	case "trace":
@@ -105,6 +113,7 @@ func initLogger() {
 	klog.SetOutput(logStore)
 	logrus.SetOutput(logStore)
 	logrus.Infof("Logger initialized. Log level set to '%s'", logLevel)
+	return logStore
 }
 
 func closeLogger() {
@@ -112,4 +121,57 @@ func closeLogger() {
 		logStore.Close()
 		logStore.Dump(os.Stderr)
 	}
+}
+
+func redirectToLogger(logger io.Writer) (func(), error) {
+	// Save original stdout/stderr
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	// Create pipes
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	// Redirect stdout and stderr to pipe writers
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+
+	// Also redirect standard log package
+	log.SetOutput(logger)
+
+	// Copy pipe readers to logger in background
+	go func() {
+		var err error
+		_, err = io.Copy(logger, stdoutR)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	go func() {
+		var err error
+		_, err = io.Copy(logger, stderrR)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// Return cleanup function
+	cleanup := func() {
+		// Restore original stdout/stderr
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+
+		// Close pipe writers
+		_ = stdoutW.Close()
+		_ = stderrW.Close()
+	}
+
+	return cleanup, nil
 }
