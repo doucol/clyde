@@ -55,6 +55,7 @@ func init() {
 }
 
 func Execute() int {
+	exitCode := 0
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
 	var redirectCleanup func()
@@ -81,12 +82,12 @@ func Execute() int {
 	}
 	defer closeLogger()
 	if err := rootCmd.Execute(); err != nil {
-		return -1
+		exitCode = -1
 	}
 	if redirectCleanup != nil {
 		defer redirectCleanup()
 	}
-	return 0
+	return exitCode
 }
 
 func initLogger() io.Writer {
@@ -144,9 +145,6 @@ func redirectToLogger(logger io.Writer) (func(), error) {
 	// Redirect stdout and stderr to pipe writers
 	os.Stdout = stdoutW
 	os.Stderr = stderrW
-
-	// Also redirect standard log package
-	log.SetOutput(logger)
 
 	// Copy pipe readers to logger in background
 	go func() {
