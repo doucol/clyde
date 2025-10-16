@@ -269,6 +269,8 @@ function install_demo_app() {
       if [[ "${ZTPOLICY}" == "true" ]]; then
         ${KUBECTL} create -f https://raw.githubusercontent.com/doucol/clyde/refs/heads/main/test/gcp-demo-zero-trust-policy.yaml
       fi
+      # the cartservice is a bit memory hungry, so let's up the limit to prevent OOMKills
+      ${KUBECTL} patch deployment cartservice -p '{"spec":{"template":{"spec":{"containers":[{"name":"server","resources":{"limits":{"memory":"256Mi"},"requests":{"memory":"64Mi"}}}]}}}}'
       return $?
     else
       echo "ERROR: Not all calico-nodes are ready after waiting too long - exiting..."
