@@ -62,7 +62,9 @@ func (m sumDetailModel) Init() tea.Cmd {
 func (m sumDetailModel) setSize(w, h int) sumDetailModel {
 	m.width = w
 	m.height = h
-	m.table.SetWidth(w - 2)
+	tableWidth := w - 2
+	m.table.SetWidth(tableWidth)
+	m.table.SetColumns(scaleColumns(sumDetailColumns(), tableWidth))
 	th := h - 12
 	if th < 3 {
 		th = 3

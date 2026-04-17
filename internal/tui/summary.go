@@ -159,6 +159,35 @@ func tableStyles() table.Styles {
 	return s
 }
 
+// scaleColumns distributes totalWidth across the given columns proportionally
+// to their base widths. totalWidth includes the per-cell padding (2 chars per
+// column) applied by styleCell / styleHeaderCell.
+func scaleColumns(base []table.Column, totalWidth int) []table.Column {
+	if len(base) == 0 {
+		return base
+	}
+	contentWidth := max(totalWidth-2*len(base), len(base))
+	baseSum := 0
+	for _, c := range base {
+		baseSum += c.Width
+	}
+	if baseSum <= 0 {
+		return base
+	}
+	out := make([]table.Column, len(base))
+	assigned := 0
+	for i, c := range base {
+		w := max(c.Width*contentWidth/baseSum, 1)
+		out[i] = table.Column{Title: c.Title, Width: w}
+		assigned += w
+	}
+	for i := 0; assigned < contentWidth; i = (i + 1) % len(out) {
+		out[i].Width++
+		assigned++
+	}
+	return out
+}
+
 func (m summaryModel) Init() tea.Cmd {
 	return m.variant.fetch(m.fc)
 }
@@ -166,7 +195,9 @@ func (m summaryModel) Init() tea.Cmd {
 func (m summaryModel) setSize(w, h int) summaryModel {
 	m.width = w
 	m.height = h
-	m.table.SetWidth(w - 2)
+	tableWidth := w - 2
+	m.table.SetWidth(tableWidth)
+	m.table.SetColumns(scaleColumns(m.variant.columns(), tableWidth))
 	th := h - 4
 	if th < 3 {
 		th = 3

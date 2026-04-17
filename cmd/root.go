@@ -12,7 +12,6 @@ import (
 
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/logger"
-	"github.com/doucol/clyde/internal/tui"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/doucol/clyde/internal/whisker"
 	"github.com/sirupsen/logrus"
@@ -27,9 +26,11 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "clyde",
-	Short: "Project Calico utilities",
-	Long:  "clyde\nA collection of Project Calico utilities",
+	Use:           "clyde",
+	Short:         "Project Calico utilities",
+	Long:          "clyde\nA collection of Project Calico utilities",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := whisker.DefaultConfig()
 		w := whisker.New(cfg)
@@ -79,9 +80,7 @@ func Execute() int {
 	}
 	defer closeLogger()
 	if err := rootCmd.Execute(); err != nil {
-		if errors.Is(err, tui.ErrGoldmaneNotAvailable) {
-			fmt.Fprintln(os.Stderr, err.Error())
-		}
+		fmt.Fprintln(os.Stderr, err.Error())
 		return -1
 	}
 	return 0

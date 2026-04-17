@@ -328,9 +328,6 @@ func (m appModel) handleBack() (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) quitCmd() tea.Cmd {
-	if m.cc != nil {
-		m.cc.Cancel()
-	}
 	return tea.Quit
 }
 
@@ -452,7 +449,15 @@ func (fa *FlowApp) Run(ctx context.Context) error {
 	fa.prog = prog
 	fa.mu.Unlock()
 
-	if _, err := prog.Run(); err != nil {
+	_, err := prog.Run()
+	// Cancel the command context so sibling goroutines (flow catcher, etc.)
+	// can shut down once the TUI exits. Runs regardless of how we got here.
+	if cc := cmdctx.CmdCtxFromContext(ctx); cc != nil {
+		cc.Cancel()
+	}
+	// A cancelled context — either via our own Cancel above or an external
+	// signal — is a normal shutdown, not a program error.
+	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 	return fa.ExitErr()
