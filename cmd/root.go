@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/logger"
+	"github.com/doucol/clyde/internal/tui"
+	"github.com/doucol/clyde/internal/util"
 	"github.com/doucol/clyde/internal/whisker"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -59,11 +62,13 @@ func Execute() int {
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		initLogger()
-		// This new context contains our CmdContext, accessible from every cmd func
-		//   - the CmdContext also contains the Cancel func which in turn
-		//   calls 'cancel()' on the context triggering app shutdown everywhere
-		//   through the context <-Done() channel
-		cc := cmdctx.NewCmdCtx(kubeConfig, kubeContext)
+		source := util.KubeconfigSourceDefault
+		if cmd.Flags().Changed("kubeconfig") {
+			source = util.KubeconfigSourceFlag
+		} else if os.Getenv("KUBECONFIG") != "" {
+			source = util.KubeconfigSourceEnv
+		}
+		cc := cmdctx.NewCmdCtx(kubeConfig, source, kubeContext)
 		ctx := cc.ToContext(cmd.Context())
 		cc = cmdctx.CmdCtxFromContext(ctx)
 		go func() {
@@ -74,6 +79,9 @@ func Execute() int {
 	}
 	defer closeLogger()
 	if err := rootCmd.Execute(); err != nil {
+		if errors.Is(err, tui.ErrGoldmaneNotAvailable) {
+			fmt.Fprintln(os.Stderr, err.Error())
+		}
 		return -1
 	}
 	return 0

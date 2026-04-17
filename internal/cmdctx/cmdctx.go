@@ -16,22 +16,40 @@ type cmdCtxKeyType string
 const cmdCtxKey cmdCtxKeyType = "CmdContextKey"
 
 type CmdCtx struct {
-	kubeConfig  string
-	kubeContext string
-	k8scfg      *rest.Config
-	dc          *dynamic.DynamicClient
-	cs          *kubernetes.Clientset
-	cancel      context.CancelFunc
+	kubeConfig       string
+	kubeConfigSource string
+	kubeContext      string
+	k8scfg           *rest.Config
+	dc               *dynamic.DynamicClient
+	cs               *kubernetes.Clientset
+	cancel           context.CancelFunc
 }
 
-func NewCmdCtx(kubeConfig, kubeContext string) *CmdCtx {
-	return &CmdCtx{kubeConfig: kubeConfig, kubeContext: kubeContext}
+func NewCmdCtx(kubeConfig, kubeConfigSource, kubeContext string) *CmdCtx {
+	return &CmdCtx{
+		kubeConfig:       kubeConfig,
+		kubeConfigSource: kubeConfigSource,
+		kubeContext:      kubeContext,
+	}
 }
 
 func (c *CmdCtx) ToContext(ctx context.Context) context.Context {
 	newctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
 	return context.WithValue(newctx, cmdCtxKey, c)
+}
+
+func (c *CmdCtx) KubeconfigPath() string   { return c.kubeConfig }
+func (c *CmdCtx) KubeconfigSource() string { return c.kubeConfigSource }
+func (c *CmdCtx) KubeContext() string      { return c.kubeContext }
+
+// SetContext switches the active kubeconfig context. Cached k8s clients
+// are cleared so subsequent calls rebuild against the new context.
+func (c *CmdCtx) SetContext(name string) {
+	c.kubeContext = name
+	c.k8scfg = nil
+	c.dc = nil
+	c.cs = nil
 }
 
 func (c *CmdCtx) GetK8sConfig() *rest.Config {

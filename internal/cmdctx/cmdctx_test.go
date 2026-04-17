@@ -44,7 +44,7 @@ func TestNewCmdCtx(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := NewCmdCtx(tt.kubeConfig, tt.kubeContext)
+			ctx := NewCmdCtx(tt.kubeConfig, "", tt.kubeContext)
 			if ctx.kubeConfig != tt.wantConfig {
 				t.Errorf("NewCmdCtx().kubeConfig = %v, want %v", ctx.kubeConfig, tt.wantConfig)
 			}
@@ -56,7 +56,7 @@ func TestNewCmdCtx(t *testing.T) {
 }
 
 func TestToContext(t *testing.T) {
-	ctx := NewCmdCtx("", "")
+	ctx := NewCmdCtx("", "", "")
 	parentCtx := context.Background()
 
 	// Test context creation
@@ -132,7 +132,7 @@ func TestGetK8sConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := NewCmdCtx(tt.kubeConfig, tt.kubeContext)
+			ctx := NewCmdCtx(tt.kubeConfig, "", tt.kubeContext)
 
 			if tt.wantErr {
 				defer func() {
@@ -189,7 +189,7 @@ func TestClientset(t *testing.T) {
 }
 
 // func TestContextHelpers(t *testing.T) {
-// 	ctx := NewCmdCtx("", "")
+// 	ctx := NewCmdCtx("", "", "")
 // 	parentCtx := context.Background()
 // 	newCtx := ctx.ToContext(parentCtx)
 //
@@ -224,7 +224,7 @@ func TestClientset(t *testing.T) {
 // }
 
 func TestCancel(t *testing.T) {
-	ctx := NewCmdCtx("", "")
+	ctx := NewCmdCtx("", "", "")
 	parentCtx := context.Background()
 	newCtx := ctx.ToContext(parentCtx)
 
@@ -238,7 +238,7 @@ func TestCancel(t *testing.T) {
 	}
 
 	// Test cancellation without context
-	ctx2 := NewCmdCtx("", "")
+	ctx2 := NewCmdCtx("", "", "")
 	func() {
 		defer func() {
 			if r := recover(); r == nil {

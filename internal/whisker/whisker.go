@@ -86,6 +86,8 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	flowCache := flowcache.NewFlowCache(ctx, w.fds)
 	flowApp := tui.NewFlowApp(w.fds, flowCache)
 
+	var tuiErr error
+
 	recoverFunc := w.cfg.RecoverFunc
 	if recoverFunc == nil {
 		recoverFunc = func() {
@@ -156,7 +158,8 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 			defer flowApp.Stop()
 			defer recoverFunc()
 			if err := flowApp.Run(ctx); err != nil {
-				logrus.Panicf("error running flow app: %v", err)
+				tuiErr = err
+				logrus.Debugf("flow app exited with error: %v", err)
 			}
 			logrus.Debug("exiting flow watcher tui app")
 		}()
@@ -179,5 +182,5 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	// Wait for both goroutines to finish
 	wg.Wait()
 	logrus.Debug("exiting watch flows")
-	return nil
+	return tuiErr
 }
