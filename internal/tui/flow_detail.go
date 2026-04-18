@@ -38,7 +38,8 @@ func (m flowDetailModel) setSize(w, h int) flowDetailModel {
 	m.width = w
 	m.height = h
 	m.viewport.SetWidth(w - 4)
-	vh := h - 12
+	// 2 border lines + 11 info-table lines (9 rows + 2 borders) + 1 status line
+	vh := h - 14
 	if vh < 3 {
 		vh = 3
 	}
@@ -98,16 +99,15 @@ func (m flowDetailModel) Update(msg tea.Msg) (flowDetailModel, tea.Cmd) {
 }
 
 func (m flowDetailModel) View() string {
-	title := styleTitle.Render("Calico Flow Detail")
 	header := m.renderHeader()
 	body := m.viewport.View()
 	status := styleHelp.Render("esc: back  |  ↑/↓: scroll")
-	inner := lipgloss.JoinVertical(lipgloss.Left, title, header, body, status)
+	inner := lipgloss.JoinVertical(lipgloss.Left, header, body, status)
 	w := m.width - 2
 	if w < 10 {
 		w = 10
 	}
-	return styleBorder.Width(w).Render(inner)
+	return renderTitledBorder("Calico Flow Detail", inner, w)
 }
 
 func (m flowDetailModel) renderHeader() string {
@@ -115,28 +115,15 @@ func (m flowDetailModel) renderHeader() string {
 	if fd == nil {
 		return ""
 	}
-	kv := func(label, value string) string {
-		return lipgloss.JoinHorizontal(lipgloss.Top,
-			styleStatusKey.Render(label+": "),
-			styleStatusVal.Render(value),
-		)
-	}
-	line1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("SRC", padRight(fmt.Sprintf("%s / %s", fd.SourceNamespace, fd.SourceName), 40)),
-		"  ",
-		kv("DST", padRight(fmt.Sprintf("%s / %s", fd.DestNamespace, fd.DestName), 40)),
-	)
-	line2 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("RPT/PROTO:PORT", padRight(fmt.Sprintf("%s / %s:%d", fd.Reporter, fd.Protocol, fd.DestPort), 30)),
-		"  ",
-		kv("START", padRight(tf(fd.StartTime), 22)),
-		"  ",
-		kv("END", padRight(tf(fd.EndTime), 22)),
-	)
-	line3 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("P I/O - B I/O", padRight(fmt.Sprintf("%d / %d - %d / %d", fd.PacketsIn, fd.PacketsOut, fd.BytesIn, fd.BytesOut), 30)),
-		"  ",
-		kv("ACTION", actionStyled(fd.Action)),
-	)
-	return lipgloss.JoinVertical(lipgloss.Left, line1, line2, line3)
+	return infoTable([][]string{
+		{"Source", fmt.Sprintf("%s / %s", fd.SourceNamespace, fd.SourceName)},
+		{"Destination", fmt.Sprintf("%s / %s", fd.DestNamespace, fd.DestName)},
+		{"Reporter", fd.Reporter},
+		{"Protocol:Port", fmt.Sprintf("%s:%d", fd.Protocol, fd.DestPort)},
+		{"Started", tf(fd.StartTime)},
+		{"Ended", tf(fd.EndTime)},
+		{"Packets in/out", fmt.Sprintf("%d / %d", fd.PacketsIn, fd.PacketsOut)},
+		{"Bytes in/out", fmt.Sprintf("%d / %d", fd.BytesIn, fd.BytesOut)},
+		{"Action", actionStyled(fd.Action)},
+	})
 }

@@ -197,8 +197,7 @@ func (m filterModel) toAttributes() (flowdata.FilterAttributes, error) {
 }
 
 func (m filterModel) View() string {
-	title := styleOverlayTitle.Render("Filter Attributes")
-	rows := []string{title, ""}
+	rows := []string{}
 	rows = append(rows, m.renderAction())
 	rows = append(rows, m.renderField("Port:", m.inputs[fieldPort].View(), m.focusIdx == fieldPort))
 	rows = append(rows, m.renderField("Namespace:", m.inputs[fieldNamespace].View(), m.focusIdx == fieldNamespace))
@@ -213,15 +212,8 @@ func (m filterModel) View() string {
 	}
 	rows = append(rows, styleHelp.Render("tab/shift+tab: move  |  enter: save  |  esc: cancel  |  ←/→: action"))
 	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	boxed := styleBorder.Padding(1, 2).Width(78).Render(content)
-	w, h := m.width, m.height
-	if w <= 0 {
-		w = 80
-	}
-	if h <= 0 {
-		h = 24
-	}
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, boxed)
+	padded := lipgloss.NewStyle().Background(colorBg).Padding(1, 2).Width(78).Render(content)
+	return renderTitledBorder("Filter Attributes", padded, lipgloss.Width(padded))
 }
 
 func (m filterModel) renderAction() string {

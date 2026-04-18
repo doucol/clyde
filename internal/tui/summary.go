@@ -198,7 +198,7 @@ func (m summaryModel) setSize(w, h int) summaryModel {
 	tableWidth := w - 2
 	m.table.SetWidth(tableWidth)
 	m.table.SetColumns(scaleColumns(m.variant.columns(), tableWidth))
-	th := h - 4
+	th := h - 3
 	if th < 3 {
 		th = 3
 	}
@@ -342,15 +342,14 @@ func (m summaryModel) toggleSort(fieldName string, defaultAsc bool) tea.Cmd {
 }
 
 func (m summaryModel) View() string {
-	title := styleTitle.Render(m.variant.title())
 	body := m.table.View()
 	status := m.statusLine()
-	inner := lipgloss.JoinVertical(lipgloss.Left, title, body, status)
+	inner := lipgloss.JoinVertical(lipgloss.Left, body, status)
 	w := m.width - 2
 	if w < 10 {
 		w = 10
 	}
-	return styleBorder.Width(w).Render(inner)
+	return renderTitledBorder(m.variant.title(), inner, w)
 }
 
 func (m summaryModel) statusLine() string {

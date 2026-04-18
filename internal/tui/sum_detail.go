@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	ltable "charm.land/lipgloss/v2/table"
 
 	"github.com/doucol/clyde/internal/flowdata"
 )
@@ -65,7 +66,8 @@ func (m sumDetailModel) setSize(w, h int) sumDetailModel {
 	tableWidth := w - 2
 	m.table.SetWidth(tableWidth)
 	m.table.SetColumns(scaleColumns(sumDetailColumns(), tableWidth))
-	th := h - 12
+	// 2 border lines + 8 info-table lines (6 rows + 2 borders) + 1 status line
+	th := h - 11
 	if th < 3 {
 		th = 3
 	}
@@ -180,16 +182,15 @@ func (m sumDetailModel) Update(msg tea.Msg) (sumDetailModel, tea.Cmd) {
 }
 
 func (m sumDetailModel) View() string {
-	title := styleTitle.Render("Calico Flow Summary Detail")
 	header := m.renderHeader()
 	body := m.table.View()
 	status := m.statusLine()
-	inner := lipgloss.JoinVertical(lipgloss.Left, title, header, body, status)
+	inner := lipgloss.JoinVertical(lipgloss.Left, header, body, status)
 	w := m.width - 2
 	if w < 10 {
 		w = 10
 	}
-	return styleBorder.Width(w).Render(inner)
+	return renderTitledBorder("Calico Flow Summary Detail", inner, w)
 }
 
 func (m sumDetailModel) renderHeader() string {
@@ -197,28 +198,30 @@ func (m sumDetailModel) renderHeader() string {
 	if fs == nil {
 		return styleHelp.Render("(no summary selected)")
 	}
-	kv := func(label, value string) string {
-		return lipgloss.JoinHorizontal(lipgloss.Top,
-			styleStatusKey.Render(label+": "),
-			styleStatusVal.Render(value),
-		)
-	}
-	line1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("SRC NS", padRight(fs.SourceNamespace, 20)),
-		"  ",
-		kv("SRC NAME", padRight(fs.SourceName, 30)),
-	)
-	line2 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("DST NS", padRight(fs.DestNamespace, 20)),
-		"  ",
-		kv("DST NAME", padRight(fs.DestName, 30)),
-	)
-	line3 := lipgloss.JoinHorizontal(lipgloss.Top,
-		kv("PROTO", padRight(fs.Protocol, 8)),
-		"  ",
-		kv("PORT", fmt.Sprintf("%d", fs.DestPort)),
-	)
-	return lipgloss.JoinVertical(lipgloss.Left, line1, line2, line3)
+	return infoTable([][]string{
+		{"Source Namespace", fs.SourceNamespace},
+		{"Source Name", fs.SourceName},
+		{"Destination Namespace", fs.DestNamespace},
+		{"Destination Name", fs.DestName},
+		{"Protocol", fs.Protocol},
+		{"Port", fmt.Sprintf("%d", fs.DestPort)},
+	})
+}
+
+func infoTable(rows [][]string) string {
+	return ltable.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(colorBorder)).
+		BorderColumn(false).
+		BorderRow(false).
+		StyleFunc(func(_, col int) lipgloss.Style {
+			if col == 0 {
+				return styleStatusKey.Padding(0, 1)
+			}
+			return styleStatusVal.Padding(0, 1)
+		}).
+		Rows(rows...).
+		String()
 }
 
 func (m sumDetailModel) statusLine() string {

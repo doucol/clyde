@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/flowcache"
@@ -422,8 +423,17 @@ func (m appModel) View() tea.View {
 	}
 
 	content := body
-	if overlay != "" {
-		content = overlay
+	if overlay != "" && m.width > 0 && m.height > 0 {
+		ow := lipgloss.Width(overlay)
+		oh := lipgloss.Height(overlay)
+		ox := max((m.width-ow)/2, 0)
+		oy := max((m.height-oh)/2, 0)
+		canvas := lipgloss.NewCanvas(m.width, m.height)
+		canvas.Compose(lipgloss.NewCompositor(
+			lipgloss.NewLayer(body),
+			lipgloss.NewLayer(overlay).X(ox).Y(oy).Z(1),
+		))
+		content = canvas.Render()
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true

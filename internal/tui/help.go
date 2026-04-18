@@ -33,14 +33,13 @@ func (m helpModel) Update(msg tea.Msg) (helpModel, bool) {
 }
 
 func (m helpModel) View() string {
-	title := styleOverlayTitle.Render("Help — Key Commands")
 	maxKeyLen := 0
 	for _, e := range helpEntries {
 		if len(e.Key) > maxKeyLen {
 			maxKeyLen = len(e.Key)
 		}
 	}
-	lines := []string{title, ""}
+	lines := []string{}
 	for _, e := range helpEntries {
 		line := lipgloss.JoinHorizontal(lipgloss.Top,
 			styleMenuKey.Render(padRight(e.Key, maxKeyLen+2)),
@@ -50,13 +49,6 @@ func (m helpModel) View() string {
 	}
 	lines = append(lines, "", styleHelp.Render("esc or ? to close"))
 	body := lipgloss.JoinVertical(lipgloss.Left, lines...)
-	boxed := styleBorder.Padding(1, 2).Render(body)
-	w, h := m.width, m.height
-	if w <= 0 {
-		w = 80
-	}
-	if h <= 0 {
-		h = 24
-	}
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, boxed)
+	padded := lipgloss.NewStyle().Background(colorBg).Padding(1, 2).Render(body)
+	return renderTitledBorder("Help — Key Commands", padded, lipgloss.Width(padded))
 }

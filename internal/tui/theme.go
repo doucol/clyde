@@ -1,6 +1,10 @@
 package tui
 
-import "charm.land/lipgloss/v2"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 var (
 	colorBg         = lipgloss.Color("#000000")
@@ -53,12 +57,6 @@ var (
 	styleStatusKey = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 	styleStatusVal = lipgloss.NewStyle().Foreground(colorText)
 
-	styleOverlayTitle = lipgloss.NewStyle().
-				Foreground(colorTitle).
-				Background(colorBg).
-				Bold(true).
-				Padding(0, 1)
-
 	styleFormLabel = lipgloss.NewStyle().
 			Foreground(colorLabel).
 			Bold(true)
@@ -101,6 +99,36 @@ var (
 
 	styleError = lipgloss.NewStyle().Foreground(colorError).Bold(true)
 )
+
+// renderTitledBorder wraps content in the rounded border and embeds the
+// given title at the top-center, replacing the middle of the top border.
+func renderTitledBorder(title, content string, width int) string {
+	boxed := styleBorder.Width(width).Render(content)
+	if title == "" {
+		return boxed
+	}
+	lines := strings.Split(boxed, "\n")
+	if len(lines) == 0 {
+		return boxed
+	}
+	totalWidth := lipgloss.Width(lines[0])
+	innerSpace := totalWidth - 2
+	if innerSpace < 4 {
+		return boxed
+	}
+	styledTitle := styleTitle.Render(" " + title + " ")
+	titleW := lipgloss.Width(styledTitle)
+	if titleW > innerSpace-2 {
+		return boxed
+	}
+	leftDashes := (innerSpace - titleW) / 2
+	rightDashes := innerSpace - titleW - leftDashes
+	bs := lipgloss.NewStyle().Foreground(colorBorder)
+	lines[0] = bs.Render("╭"+strings.Repeat("─", leftDashes)) +
+		styledTitle +
+		bs.Render(strings.Repeat("─", rightDashes)+"╮")
+	return strings.Join(lines, "\n")
+}
 
 func actionStyled(action string) string {
 	if action == "Deny" || action == "deny" {
