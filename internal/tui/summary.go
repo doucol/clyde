@@ -142,7 +142,7 @@ func newSummaryModel(v variantProvider, fc dataProvider, fas *flowAppState) summ
 		table.WithColumns(v.columns()),
 		table.WithFocused(false),
 	)
-	t.SetStyles(tableStyles())
+	t.SetStyles(passthroughTableStyles())
 	return summaryModel{
 		variant: v,
 		fc:      fc,
@@ -151,22 +151,23 @@ func newSummaryModel(v variantProvider, fc dataProvider, fas *flowAppState) summ
 	}
 }
 
-func tableStyles() table.Styles {
-	s := table.DefaultStyles()
-	s.Header = styleHeaderCell
-	s.Cell = styleCell
-	s.Selected = styleSelected
-	return s
+// passthroughTableStyles yields empty styles so the bubbles/v2/table does not
+// wrap our pre-styled values; all row/header styling is baked into the cell
+// strings themselves (see styleDataCell / styleHeaderTitle below). This avoids
+// the outer-Selected wrapping problem where per-cell ANSI resets strip the
+// selection highlight from all but the first column.
+func passthroughTableStyles() table.Styles {
+	empty := lipgloss.NewStyle()
+	return table.Styles{Header: empty, Cell: empty, Selected: empty}
 }
 
 // scaleColumns distributes totalWidth across the given columns proportionally
-// to their base widths. totalWidth includes the per-cell padding (2 chars per
-// column) applied by styleCell / styleHeaderCell.
+// to their base widths and pre-renders each column title with its full styling
+// (background, foreground, padding) baked into the Title string.
 func scaleColumns(base []table.Column, totalWidth int) []table.Column {
 	if len(base) == 0 {
 		return base
 	}
-	contentWidth := max(totalWidth-2*len(base), len(base))
 	baseSum := 0
 	for _, c := range base {
 		baseSum += c.Width
@@ -174,18 +175,41 @@ func scaleColumns(base []table.Column, totalWidth int) []table.Column {
 	if baseSum <= 0 {
 		return base
 	}
-	out := make([]table.Column, len(base))
+	widths := make([]int, len(base))
 	assigned := 0
 	for i, c := range base {
-		w := max(c.Width*contentWidth/baseSum, 1)
-		out[i] = table.Column{Title: c.Title, Width: w}
+		w := max(c.Width*totalWidth/baseSum, 1)
+		widths[i] = w
 		assigned += w
 	}
-	for i := 0; assigned < contentWidth; i = (i + 1) % len(out) {
-		out[i].Width++
+	for i := 0; assigned < totalWidth; i = (i + 1) % len(widths) {
+		widths[i]++
 		assigned++
 	}
+	out := make([]table.Column, len(base))
+	for i, c := range base {
+		out[i] = table.Column{
+			Title: styleHeaderTitle(c.Title, widths[i]),
+			Width: widths[i],
+		}
+	}
 	return out
+}
+
+// styleHeaderTitle pre-renders a header cell to the given display width with
+// the header style (bg/fg/bold/padding) baked in.
+func styleHeaderTitle(title string, width int) string {
+	return styleHeaderCell.Width(width).MaxWidth(width).Render(title)
+}
+
+// styleDataCell pre-renders a data cell to the given display width with either
+// the base cell style or the selected style baked in.
+func styleDataCell(value string, width int, selected bool) string {
+	s := styleCell
+	if selected {
+		s = styleSelected
+	}
+	return s.Width(width).MaxWidth(width).Render(value)
 }
 
 func (m summaryModel) Init() tea.Cmd {
@@ -203,6 +227,9 @@ func (m summaryModel) setSize(w, h int) summaryModel {
 		th = 3
 	}
 	m.table.SetHeight(th)
+	if len(m.rows) > 0 {
+		m.table.SetRows(m.styledRows(m.table.Cursor()))
+	}
 	return m
 }
 
@@ -221,13 +248,50 @@ func (m summaryModel) blur() summaryModel {
 
 func (m summaryModel) setRows(rows []*flowdata.FlowSum) summaryModel {
 	m.rows = rows
-	tableRows := make([]table.Row, len(rows))
-	for i, fs := range rows {
-		tableRows[i] = m.variant.toRow(fs)
-	}
-	m.table.SetRows(tableRows)
+	m.table.SetRows(m.styledRows(m.cursorFromState()))
 	m.syncCursor()
 	return m
+}
+
+func (m summaryModel) cursorFromState() int {
+	if len(m.rows) == 0 {
+		return 0
+	}
+	row := m.variant.selectedRow(m.fas)
+	if row == 0 {
+		row = 1
+	}
+	cursor := row - 1
+	if cursor >= len(m.rows) {
+		cursor = len(m.rows) - 1
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	return cursor
+}
+
+func (m summaryModel) styledRows(cursor int) []table.Row {
+	cols := m.table.Columns()
+	tableRows := make([]table.Row, len(m.rows))
+	for i, fs := range m.rows {
+		base := m.variant.toRow(fs)
+		styled := make(table.Row, len(base))
+		sel := i == cursor
+		for c, val := range base {
+			w := 0
+			if c < len(cols) {
+				w = cols[c].Width
+			}
+			if w <= 0 {
+				styled[c] = val
+				continue
+			}
+			styled[c] = styleDataCell(val, w, sel)
+		}
+		tableRows[i] = styled
+	}
+	return tableRows
 }
 
 func (m *summaryModel) syncCursor() {
@@ -305,6 +369,7 @@ func (m summaryModel) Update(msg tea.Msg) (summaryModel, tea.Cmd) {
 			m.table.KeyMap.GotoTop, m.table.KeyMap.GotoBottom) {
 			m.table, _ = m.table.Update(msg)
 			m = m.trackCursor()
+			m.table.SetRows(m.styledRows(m.table.Cursor()))
 			return m, nil
 		}
 	}

@@ -47,7 +47,7 @@ func newSumDetailModel(fds *flowdata.FlowDataStore, fc dataProvider, fas *flowAp
 		table.WithColumns(sumDetailColumns()),
 		table.WithFocused(false),
 	)
-	t.SetStyles(tableStyles())
+	t.SetStyles(passthroughTableStyles())
 	return sumDetailModel{
 		fds:   fds,
 		fc:    fc,
@@ -72,6 +72,9 @@ func (m sumDetailModel) setSize(w, h int) sumDetailModel {
 		th = 3
 	}
 	m.table.SetHeight(th)
+	if len(m.flows) > 0 {
+		m.table.SetRows(m.styledRows(m.table.Cursor()))
+	}
 	return m
 }
 
@@ -105,9 +108,34 @@ func (m sumDetailModel) blur() sumDetailModel {
 
 func (m sumDetailModel) setFlows(flows []*flowdata.FlowData) sumDetailModel {
 	m.flows = flows
-	tableRows := make([]table.Row, len(flows))
-	for i, fd := range flows {
-		tableRows[i] = table.Row{
+	m.table.SetRows(m.styledRows(m.cursorFromState()))
+	m.syncCursor()
+	return m
+}
+
+func (m sumDetailModel) cursorFromState() int {
+	if len(m.flows) == 0 {
+		return 0
+	}
+	row := m.fas.flowRow
+	if row == 0 {
+		row = 1
+	}
+	cursor := row - 1
+	if cursor >= len(m.flows) {
+		cursor = len(m.flows) - 1
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	return cursor
+}
+
+func (m sumDetailModel) styledRows(cursor int) []table.Row {
+	cols := m.table.Columns()
+	tableRows := make([]table.Row, len(m.flows))
+	for i, fd := range m.flows {
+		base := table.Row{
 			tf(fd.StartTime),
 			tf(fd.EndTime),
 			fd.SourceLabels,
@@ -119,10 +147,22 @@ func (m sumDetailModel) setFlows(flows []*flowdata.FlowData) sumDetailModel {
 			intos(fd.BytesOut),
 			actionStyled(fd.Action),
 		}
+		styled := make(table.Row, len(base))
+		sel := i == cursor
+		for c, val := range base {
+			w := 0
+			if c < len(cols) {
+				w = cols[c].Width
+			}
+			if w <= 0 {
+				styled[c] = val
+				continue
+			}
+			styled[c] = styleDataCell(val, w, sel)
+		}
+		tableRows[i] = styled
 	}
-	m.table.SetRows(tableRows)
-	m.syncCursor()
-	return m
+	return tableRows
 }
 
 func (m *sumDetailModel) syncCursor() {
@@ -175,6 +215,7 @@ func (m sumDetailModel) Update(msg tea.Msg) (sumDetailModel, tea.Cmd) {
 			m.table.KeyMap.GotoTop, m.table.KeyMap.GotoBottom) {
 			m.table, _ = m.table.Update(msg)
 			m = m.trackCursor()
+			m.table.SetRows(m.styledRows(m.table.Cursor()))
 			return m, nil
 		}
 	}
