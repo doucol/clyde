@@ -40,7 +40,6 @@ type variantProvider interface {
 	setSelection(fas *flowAppState, id, row int)
 	selectedRow(fas *flowAppState) int
 	fetch(fc dataProvider) tea.Cmd
-	msgType() string
 }
 
 type totalsVariant struct{}
@@ -89,8 +88,6 @@ func (totalsVariant) selectedRow(fas *flowAppState) int { return fas.sumRow }
 
 func (totalsVariant) fetch(fc dataProvider) tea.Cmd { return fetchSumTotals(fc) }
 
-func (totalsVariant) msgType() string { return "totals" }
-
 type ratesVariant struct{}
 
 func (ratesVariant) kind() summaryVariant { return variantRates }
@@ -134,8 +131,6 @@ func (ratesVariant) setSelection(fas *flowAppState, id, row int) {
 func (ratesVariant) selectedRow(fas *flowAppState) int { return fas.rateRow }
 
 func (ratesVariant) fetch(fc dataProvider) tea.Cmd { return fetchSumRates(fc) }
-
-func (ratesVariant) msgType() string { return "rates" }
 
 func newSummaryModel(v variantProvider, fc dataProvider, fas *flowAppState) summaryModel {
 	t := table.New(
@@ -212,6 +207,44 @@ func styleDataCell(value string, width int, selected bool) string {
 	return s.Width(width).MaxWidth(width).Render(value)
 }
 
+// clampCursor converts a 1-based selected row into a 0-based table cursor,
+// clamped to a slice of length n (returns 0 for an empty slice). Shared by the
+// summary and detail tables.
+func clampCursor(selectedRow, n int) int {
+	if n == 0 {
+		return 0
+	}
+	if selectedRow == 0 {
+		selectedRow = 1
+	}
+	cursor := selectedRow - 1
+	if cursor >= n {
+		cursor = n - 1
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	return cursor
+}
+
+// styleRow pre-renders each cell of a table row to its column width, marking it
+// selected or not. Shared by the summary and detail tables.
+func styleRow(base table.Row, cols []table.Column, selected bool) table.Row {
+	styled := make(table.Row, len(base))
+	for c, val := range base {
+		w := 0
+		if c < len(cols) {
+			w = cols[c].Width
+		}
+		if w <= 0 {
+			styled[c] = val
+			continue
+		}
+		styled[c] = styleDataCell(val, w, selected)
+	}
+	return styled
+}
+
 func (m summaryModel) Init() tea.Cmd {
 	return m.variant.fetch(m.fc)
 }
@@ -254,42 +287,14 @@ func (m summaryModel) setRows(rows []*flowdata.FlowSum) summaryModel {
 }
 
 func (m summaryModel) cursorFromState() int {
-	if len(m.rows) == 0 {
-		return 0
-	}
-	row := m.variant.selectedRow(m.fas)
-	if row == 0 {
-		row = 1
-	}
-	cursor := row - 1
-	if cursor >= len(m.rows) {
-		cursor = len(m.rows) - 1
-	}
-	if cursor < 0 {
-		cursor = 0
-	}
-	return cursor
+	return clampCursor(m.variant.selectedRow(m.fas), len(m.rows))
 }
 
 func (m summaryModel) styledRows(cursor int) []table.Row {
 	cols := m.table.Columns()
 	tableRows := make([]table.Row, len(m.rows))
 	for i, fs := range m.rows {
-		base := m.variant.toRow(fs)
-		styled := make(table.Row, len(base))
-		sel := i == cursor
-		for c, val := range base {
-			w := 0
-			if c < len(cols) {
-				w = cols[c].Width
-			}
-			if w <= 0 {
-				styled[c] = val
-				continue
-			}
-			styled[c] = styleDataCell(val, w, sel)
-		}
-		tableRows[i] = styled
+		tableRows[i] = styleRow(m.variant.toRow(fs), cols, i == cursor)
 	}
 	return tableRows
 }
@@ -299,17 +304,7 @@ func (m *summaryModel) syncCursor() {
 		m.variant.setSelection(m.fas, 0, 0)
 		return
 	}
-	row := m.variant.selectedRow(m.fas)
-	if row == 0 {
-		row = 1
-	}
-	cursor := row - 1
-	if cursor >= len(m.rows) {
-		cursor = len(m.rows) - 1
-	}
-	if cursor < 0 {
-		cursor = 0
-	}
+	cursor := clampCursor(m.variant.selectedRow(m.fas), len(m.rows))
 	m.table.SetCursor(cursor)
 	m.variant.setSelection(m.fas, m.rows[cursor].ID, cursor+1)
 }

@@ -3,6 +3,7 @@ package cmdctx
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -18,11 +19,17 @@ const cmdCtxKey cmdCtxKeyType = "CmdContextKey"
 type CmdCtx struct {
 	kubeConfig       string
 	kubeConfigSource string
-	kubeContext      string
-	k8scfg           *rest.Config
-	dc               *dynamic.DynamicClient
-	cs               *kubernetes.Clientset
 	cancel           context.CancelFunc
+
+	// mu guards the mutable context/client fields below. SetContext (called
+	// from the TUI goroutine) clears the cached clients while the lazy getters
+	// populate them from other goroutines (tea.Cmd, flow catcher), so all
+	// access must be serialized.
+	mu          sync.Mutex
+	kubeContext string
+	k8scfg      *rest.Config
+	dc          *dynamic.DynamicClient
+	cs          *kubernetes.Clientset
 }
 
 func NewCmdCtx(kubeConfig, kubeConfigSource, kubeContext string) *CmdCtx {
@@ -41,11 +48,18 @@ func (c *CmdCtx) ToContext(ctx context.Context) context.Context {
 
 func (c *CmdCtx) KubeconfigPath() string   { return c.kubeConfig }
 func (c *CmdCtx) KubeconfigSource() string { return c.kubeConfigSource }
-func (c *CmdCtx) KubeContext() string      { return c.kubeContext }
+
+func (c *CmdCtx) KubeContext() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.kubeContext
+}
 
 // SetContext switches the active kubeconfig context. Cached k8s clients
 // are cleared so subsequent calls rebuild against the new context.
 func (c *CmdCtx) SetContext(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.kubeContext = name
 	c.k8scfg = nil
 	c.dc = nil
@@ -53,6 +67,14 @@ func (c *CmdCtx) SetContext(name string) {
 }
 
 func (c *CmdCtx) GetK8sConfig() *rest.Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.k8sConfigLocked()
+}
+
+// k8sConfigLocked returns the cached rest.Config, building it on first use. The
+// caller must hold c.mu.
+func (c *CmdCtx) k8sConfigLocked() *rest.Config {
 	if c.k8scfg != nil {
 		return c.k8scfg
 	}
@@ -70,11 +92,12 @@ func (c *CmdCtx) GetK8sConfig() *rest.Config {
 }
 
 func (c *CmdCtx) ClientDyn() *dynamic.DynamicClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.dc != nil {
 		return c.dc
 	}
-	config := c.GetK8sConfig()
-	dc, err := dynamic.NewForConfig(config)
+	dc, err := dynamic.NewForConfig(c.k8sConfigLocked())
 	if err != nil {
 		panic(err)
 	}
@@ -83,11 +106,12 @@ func (c *CmdCtx) ClientDyn() *dynamic.DynamicClient {
 }
 
 func (c *CmdCtx) Clientset() *kubernetes.Clientset {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.cs != nil {
 		return c.cs
 	}
-	config := c.GetK8sConfig()
-	cs, err := kubernetes.NewForConfig(config)
+	cs, err := kubernetes.NewForConfig(c.k8sConfigLocked())
 	if err != nil {
 		panic(err)
 	}

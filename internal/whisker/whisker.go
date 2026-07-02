@@ -12,10 +12,21 @@ import (
 	"github.com/doucol/clyde/internal/catcher"
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
-	"github.com/doucol/clyde/internal/tui"
 	"github.com/doucol/clyde/internal/util"
 	"github.com/sirupsen/logrus"
 )
+
+// FlowUI renders flow data for the user. The concrete implementation (the TUI)
+// is supplied by the caller via WhiskerConfig.NewUI, so this package does not
+// depend on any UI package.
+type FlowUI interface {
+	Run(ctx context.Context) error
+	Stop()
+}
+
+// NewUIFunc builds a FlowUI over the given store and cache. It is called only
+// when TerminalUI is enabled.
+type NewUIFunc func(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) FlowUI
 
 type WhiskerConfig struct {
 	TerminalUI       bool
@@ -27,6 +38,9 @@ type WhiskerConfig struct {
 	RateCalcInterval int
 	RecoverFunc      func()
 	CatcherFunc      catcher.CatcherFunc
+	// NewUI builds the UI when TerminalUI is true. If nil, no UI is run (the
+	// data pipeline still runs until the context is cancelled).
+	NewUI NewUIFunc
 }
 
 func DefaultConfig() *WhiskerConfig {
@@ -84,7 +98,11 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	w.fds.RateCalcInterval = w.cfg.RateCalcInterval
 
 	flowCache := flowcache.NewFlowCache(ctx, w.fds)
-	flowApp := tui.NewFlowApp(w.fds, flowCache)
+
+	var flowApp FlowUI
+	if w.cfg.TerminalUI && w.cfg.NewUI != nil {
+		flowApp = w.cfg.NewUI(w.fds, flowCache)
+	}
 
 	var tuiErr error
 
@@ -92,7 +110,9 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	if recoverFunc == nil {
 		recoverFunc = func() {
 			if err := recover(); err != nil {
-				flowApp.Stop()
+				if flowApp != nil {
+					flowApp.Stop()
+				}
 				panic(err)
 			}
 		}
@@ -106,7 +126,10 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 		flowCatcher = func(data string) error {
 			var fr flowdata.FlowResponse
 			if err := json.Unmarshal([]byte(data), &fr); err != nil {
-				logrus.Panicf("error unmarshalling flow data: %v", err)
+				// Skip the malformed event rather than tearing down the whole
+				// SSE stream; a single bad event must not stop the pipeline.
+				logrus.WithError(err).Warn("skipping malformed flow event")
+				return nil
 			}
 			fd := &flowdata.FlowData{FlowResponse: fr}
 			w.fds.AddFlow(fd)
@@ -119,7 +142,9 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer flowApp.Stop()
+		if flowApp != nil {
+			defer flowApp.Stop()
+		}
 		defer recoverFunc()
 		tock := time.Tick(2 * time.Second)
 		var lastError error
@@ -150,8 +175,8 @@ func (w *Whisker) WatchFlows(ctx context.Context, whiskerReady chan bool) error 
 		}
 	}()
 
-	// Go run the flow watcher TUI app
-	if w.cfg.TerminalUI {
+	// Go run the flow watcher UI
+	if flowApp != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

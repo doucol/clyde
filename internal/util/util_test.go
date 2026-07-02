@@ -33,12 +33,12 @@ func TestGetFreePort(t *testing.T) {
 	if err != nil {
 		t.Errorf("Port %d is not free: %v", port, err)
 	}
-	listener.Close()
+	_ = listener.Close()
 }
 
 func TestGetDataPath(t *testing.T) {
 	// Test with default XDG_DATA_HOME
-	os.Unsetenv("XDG_DATA_HOME")
+	t.Setenv("XDG_DATA_HOME", "")
 	path := GetDataPath()
 	expectedPath := filepath.Join(homedir.HomeDir(), ".local", "share", "clyde")
 	if path != expectedPath {
@@ -48,8 +48,7 @@ func TestGetDataPath(t *testing.T) {
 	// Test with custom XDG_DATA_HOME
 
 	customPath := filepath.Join(os.TempDir(), "custom-data-path")
-	os.Setenv("XDG_DATA_HOME", customPath)
-	defer os.Unsetenv("XDG_DATA_HOME")
+	t.Setenv("XDG_DATA_HOME", customPath)
 
 	path = GetDataPath()
 	expectedPath = filepath.Join(customPath, "clyde")
@@ -69,7 +68,7 @@ func TestFileExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	// Test existing file
 	if !FileExists(tmpFile.Name()) {

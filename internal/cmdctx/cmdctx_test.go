@@ -87,7 +87,7 @@ func TestGetK8sConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	kubeconfigPath := filepath.Join(tmpDir, "kubeconfig")
 	config := api.Config{

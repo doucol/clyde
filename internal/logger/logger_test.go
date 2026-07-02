@@ -24,7 +24,7 @@ func TestLoggerCreation(t *testing.T) {
 	// Test with custom log file
 	testLogFile := filepath.Join(os.TempDir(), "test.log")
 	SetLogFile(testLogFile)
-	defer os.Remove(testLogFile)
+	defer func() { _ = os.Remove(testLogFile) }()
 
 	logger, err = NewLogger()
 	if err != nil {
@@ -40,7 +40,7 @@ func TestLoggerWrite(t *testing.T) {
 	// Create a temporary log file
 	testLogFile := filepath.Join(os.TempDir(), "test.log")
 	SetLogFile(testLogFile)
-	defer os.Remove(testLogFile)
+	defer func() { _ = os.Remove(testLogFile) }()
 
 	logger, err := NewLogger()
 	if err != nil {
@@ -88,7 +88,7 @@ func TestLoggerDump(t *testing.T) {
 	// Create a temporary log file
 	testLogFile := filepath.Join(os.TempDir(), "test.log")
 	SetLogFile(testLogFile)
-	defer os.Remove(testLogFile)
+	defer func() { _ = os.Remove(testLogFile) }()
 
 	logger, err := NewLogger()
 	if err != nil {
@@ -104,7 +104,7 @@ func TestLoggerDump(t *testing.T) {
 	}
 
 	for _, msg := range testMessages {
-		logger.Write([]byte(msg))
+		_, _ = logger.Write([]byte(msg))
 	}
 
 	// Give some time for the messages to be written
@@ -112,7 +112,7 @@ func TestLoggerDump(t *testing.T) {
 
 	// Test dumping to a buffer
 	var buf bytes.Buffer
-	logger.Dump(&buf)
+	_ = logger.Dump(&buf)
 
 	expectedContent := ""
 	for _, msg := range testMessages {
@@ -150,7 +150,7 @@ func TestLoggerConcurrentWrite(t *testing.T) {
 	// Create a temporary log file
 	testLogFile := filepath.Join(os.TempDir(), "test.log")
 	SetLogFile(testLogFile)
-	defer os.Remove(testLogFile)
+	defer func() { _ = os.Remove(testLogFile) }()
 
 	logger, err := NewLogger()
 	if err != nil {
@@ -163,7 +163,7 @@ func TestLoggerConcurrentWrite(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			msg := []byte("Concurrent message " + string(rune(id+'0')) + "\n")
-			logger.Write(msg)
+			_, _ = logger.Write(msg)
 			done <- true
 		}(i)
 	}

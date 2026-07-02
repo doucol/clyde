@@ -24,21 +24,19 @@ func ChanSendTimeout[T any](ch chan T, val T, milliseconds int) error {
 	}
 }
 
+// ChanClose closes each non-nil channel. It is safe to call on a channel that
+// is already closed: the resulting "close of closed channel" panic is
+// recovered, making the close idempotent. Callers must still ensure no
+// goroutine is concurrently sending on or closing the same channel.
 func ChanClose[T any](ch ...chan T) {
 	for _, c := range ch {
 		if c == nil {
 			continue
 		}
-		select {
-		case _, ok := <-c:
-			if !ok {
-				// channel is already closed
-				continue
-			}
+		func() {
+			defer func() { _ = recover() }()
 			close(c)
-		default:
-			close(c)
-		}
+		}()
 	}
 }
 

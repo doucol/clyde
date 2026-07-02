@@ -130,6 +130,20 @@ func TestCacheRefreshSorted(t *testing.T) {
 	}
 }
 
+func TestFilterTagDistinguishesFilters(t *testing.T) {
+	if tag := filterTag(flowdata.FilterAttributes{}); tag != "" {
+		t.Errorf("empty filter should produce an empty tag, got %q", tag)
+	}
+	prod := filterTag(flowdata.FilterAttributes{Namespace: "prod"})
+	staging := filterTag(flowdata.FilterAttributes{Namespace: "staging"})
+	if prod == "" {
+		t.Error("non-empty filter should produce a non-empty tag")
+	}
+	if prod == staging {
+		t.Errorf("different filters must produce different tags: %q == %q", prod, staging)
+	}
+}
+
 func TestEmptyCacheReturnsEmptySlices(t *testing.T) {
 	fds := newMockFlowDataStore()
 	setGlobalFilter(flowdata.FilterAttributes{})

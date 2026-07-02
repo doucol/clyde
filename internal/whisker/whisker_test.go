@@ -2,7 +2,6 @@ package whisker
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 )
@@ -27,13 +26,9 @@ func TestDefaultConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable
-			if tt.notuiEnv != "" {
-				os.Setenv("NOTUI", tt.notuiEnv)
-			} else {
-				os.Unsetenv("NOTUI")
-			}
-			defer os.Unsetenv("NOTUI")
+			// Set environment variable. An empty value is equivalent to unset
+			// for DefaultConfig, which only checks os.Getenv(...) == "".
+			t.Setenv("NOTUI", tt.notuiEnv)
 
 			cfg := DefaultConfig()
 
@@ -82,7 +77,7 @@ func TestNew(t *testing.T) {
 	w := New(cfg)
 
 	if w == nil {
-		t.Error("expected New to return non-nil Whisker")
+		t.Fatal("expected New to return non-nil Whisker")
 	}
 	if w.cfg != cfg {
 		t.Error("expected config to match the provided config")

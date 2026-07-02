@@ -67,19 +67,19 @@ bin/clyde
 
 ### Additionally
 
-You can also use the `bin/calico-on-kind` script to quickly create a
+You can also use the `scripts/calico-on-kind` script to quickly create a
 [Kind](https://kind.sigs.k8s.io/) based Kubernetes cluster with Calico OSS installed.
 
 > NOTE: this script does require a newer version of `kubectl`. Tested with `v1.33`
 
 ```bash
 # To see help
-./bin/calico-on-kind
+./scripts/calico-on-kind
 
 # Example:
 # To create a new cluster, install the GCP demo app, and a set of
 # zero trust policies.
-VERSION=v3.30 DP=BPF DEMOAPP=true ./bin/calico-on-kind new
+VERSION=v3.30 DP=BPF DEMOAPP=true ./scripts/calico-on-kind new
 ```
 
 > **_NOTE:_** ARM based machines may have issues to work through with the DEMOAPP,

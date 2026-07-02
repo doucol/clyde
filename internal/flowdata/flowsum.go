@@ -1,7 +1,7 @@
 package flowdata
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/doucol/clyde/internal/util"
@@ -95,7 +95,7 @@ func (fs *FlowSum) GetEndTime() time.Time {
 	return fs.EndTime
 }
 
-func flowToFlowSum(fd *FlowData, fs *FlowSum) *FlowSum {
+func flowToFlowSum(fd *FlowData, fs *FlowSum) (*FlowSum, error) {
 	if fs == nil {
 		fs = &FlowSum{}
 		fs.Key = fd.GetSumKey()
@@ -128,7 +128,7 @@ func flowToFlowSum(fd *FlowData, fs *FlowSum) *FlowSum {
 		fs.DestBytesIn += uint64(fd.BytesIn)
 		fs.DestBytesOut += uint64(fd.BytesOut)
 	default:
-		panic(errors.New("unknown reporter in flow data: " + Reporter_name[int32(Reporter_value[fd.Reporter])]))
+		return nil, fmt.Errorf("unknown reporter in flow data: %q", fd.Reporter)
 	}
-	return fs
+	return fs, nil
 }

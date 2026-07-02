@@ -7,11 +7,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/doucol/clyde/internal/util"
+	"github.com/doucol/clyde/internal/kube"
 )
 
 type homeModel struct {
-	kc       *util.KubeconfigInfo
+	kc       *kube.KubeconfigInfo
 	loadErr  error
 	cursor   int
 	width    int
@@ -20,7 +20,7 @@ type homeModel struct {
 	selected string
 }
 
-func newHomeModel(kc *util.KubeconfigInfo, loadErr error) homeModel {
+func newHomeModel(kc *kube.KubeconfigInfo, loadErr error) homeModel {
 	m := homeModel{kc: kc, loadErr: loadErr}
 	if kc != nil {
 		for i, name := range kc.Contexts {

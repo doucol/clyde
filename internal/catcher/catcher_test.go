@@ -23,7 +23,7 @@ func TestDataCatcher_CatchServerSentEvents_WithURLFull(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("data: testdata\n\n"))
+		_, _ = w.Write([]byte("data: testdata\n\n"))
 	}))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestDataCatcher_consumeSSEStream_HandlesDataAndOtherLines(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	defer ts.Close()
 	dc := &DataCatcher{
@@ -87,7 +87,7 @@ func TestDataCatcher_consumeSSEStream_HandlesCatcherError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("data: fail\n\n"))
+		_, _ = w.Write([]byte("data: fail\n\n"))
 	}))
 	defer ts.Close()
 	dc := &DataCatcher{
@@ -122,7 +122,7 @@ func TestDataCatcher_consumeSSEStream_StopChan(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	defer ts.Close()
 	dc := &DataCatcher{

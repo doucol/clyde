@@ -79,7 +79,7 @@ func (dc *DataCatcher) CatchServerSentEvents(ctx context.Context, sseReady chan 
 	var err error
 	sseURL := dc.URLFull
 	if sseURL == "" {
-		sseURL, err = dc.portFoward(ctx, stopChan, readyChan, wg)
+		sseURL, err = dc.portForward(ctx, stopChan, readyChan, wg)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func (dc *DataCatcher) CatchServerSentEvents(ctx context.Context, sseReady chan 
 	return nil
 }
 
-func (dc *DataCatcher) portFoward(ctx context.Context, stopChan, readyChan chan struct{}, wg *sync.WaitGroup) (string, error) {
+func (dc *DataCatcher) portForward(ctx context.Context, stopChan, readyChan chan struct{}, wg *sync.WaitGroup) (string, error) {
 	config := cmdctx.K8sConfigFromContext(ctx)
 	clientset := cmdctx.K8sClientsetFromContext(ctx)
 

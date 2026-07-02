@@ -14,15 +14,17 @@ import (
 	"github.com/doucol/clyde/internal/flowcache"
 	"github.com/doucol/clyde/internal/flowdata"
 	"github.com/doucol/clyde/internal/global"
-	"github.com/doucol/clyde/internal/util"
+	"github.com/doucol/clyde/internal/kube"
 )
 
 // ErrGoldmaneNotAvailable is returned from FlowApp.Run when the selected
 // context does not have the Calico Goldmane log aggregator available.
-var ErrGoldmaneNotAvailable = errors.New(
+// User-facing message shown in the TUI; the leading proper noun is
+// intentionally capitalized, so the staticcheck error-string style is waived.
+var ErrGoldmaneNotAvailable = errors.New( //nolint:staticcheck
 	"Goldmane is not available on the selected context. " +
 		"Clyde requires Calico v3.30+ with the Goldmane log aggregator enabled. " +
-		"See https://docs.tigera.io/calico/latest/observability/goldmane for upgrade instructions.",
+		"See https://docs.tigera.io/calico/latest/observability/goldmane for upgrade instructions",
 )
 
 const (
@@ -46,22 +48,16 @@ type FlowApp struct {
 	fds     *flowdata.FlowDataStore
 	fc      *flowcache.FlowCache
 	fas     *flowAppState
-	pages   pageRegistry
 	prog    *tea.Program
 	exitErr error
 }
 
-type pageRegistry struct {
-	active string
-}
-
 func NewFlowApp(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) *FlowApp {
 	return &FlowApp{
-		mu:    &sync.Mutex{},
-		fds:   fds,
-		fc:    fc,
-		fas:   &flowAppState{},
-		pages: pageRegistry{active: pageHomeName},
+		mu:  &sync.Mutex{},
+		fds: fds,
+		fc:  fc,
+		fas: &flowAppState{},
 	}
 }
 
@@ -89,7 +85,7 @@ type appModel struct {
 
 func (fa *FlowApp) newAppModel(ctx context.Context) appModel {
 	cc := cmdctx.CmdCtxFromContext(ctx)
-	kc, loadErr := util.LoadKubeconfigInfo(cc.KubeconfigPath(), cc.KubeconfigSource())
+	kc, loadErr := kube.LoadKubeconfigInfo(cc.KubeconfigPath(), cc.KubeconfigSource())
 
 	m := appModel{
 		fa:         fa,
@@ -480,37 +476,4 @@ func (fa *FlowApp) Stop() {
 		fa.prog.Quit()
 		fa.prog = nil
 	}
-}
-
-// updateSort preserved for tests. New paths go through summaryModel.toggleSort.
-func (fa *FlowApp) updateSort(_ any, fieldName string, defaultOrder bool, pageName string) any {
-	sa := global.GetSort()
-	asc := defaultOrder
-	switch pageName {
-	case pageSummaryTotalsName:
-		if sa.SumTotalsFieldName == fieldName {
-			asc = !sa.SumTotalsAscending
-		}
-		global.SetSort(flowdata.SortAttributes{
-			SumTotalsFieldName: fieldName,
-			SumTotalsAscending: asc,
-			SumRatesFieldName:  sa.SumRatesFieldName,
-			SumRatesAscending:  sa.SumRatesAscending,
-		})
-		fa.fas.setSum(0, 0)
-		return nil
-	case pageSummaryRatesName:
-		if sa.SumRatesFieldName == fieldName {
-			asc = !sa.SumRatesAscending
-		}
-		global.SetSort(flowdata.SortAttributes{
-			SumTotalsFieldName: sa.SumTotalsFieldName,
-			SumTotalsAscending: sa.SumTotalsAscending,
-			SumRatesFieldName:  fieldName,
-			SumRatesAscending:  asc,
-		})
-		fa.fas.setRate(0, 0)
-		return nil
-	}
-	return "eventPassthrough"
 }

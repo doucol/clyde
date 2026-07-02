@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/doucol/clyde/internal/flowdata"
@@ -56,16 +58,19 @@ type ServerConfig struct {
 // SSEServer manages the Server-Sent Events functionality
 type SSEServer struct {
 	config   ServerConfig
+	mu       sync.Mutex
 	clients  map[chan *flowdata.FlowResponse]bool
 	flowKeys []*FlowKey
 	server   *http.Server
+	port     int
 	Connect  chan int
 }
 
-// DefaultConfig returns a default server configuration
+// DefaultConfig returns a default server configuration. Port defaults to 0,
+// which binds an ephemeral port so tests never collide on a fixed port.
 func DefaultConfig() ServerConfig {
 	return ServerConfig{
-		Port:           8080,
+		Port:           0,
 		StreamInterval: 15 * time.Second,
 		MaxClients:     100,
 		Services:       []string{"checkoutservice", "currencyservice", "paymentservice", "shippingservice", "cartservice"},
@@ -209,26 +214,52 @@ func (s *SSEServer) generateFlow(fk *FlowKey, reporter, action string) *flowdata
 	return flow
 }
 
-// addClient adds a new SSE client
-func (s *SSEServer) addClient(client chan *flowdata.FlowResponse) {
-	s.clients[client] = true
-	s.Connect <- len(s.clients)
-	log.Printf("Client connected. Total clients: %d", len(s.clients))
+// clientCount returns the number of connected clients.
+func (s *SSEServer) clientCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.clients)
 }
 
-// removeClient removes an SSE client
+// addClient adds a new SSE client
+func (s *SSEServer) addClient(client chan *flowdata.FlowResponse) {
+	s.mu.Lock()
+	s.clients[client] = true
+	n := len(s.clients)
+	s.mu.Unlock()
+	s.Connect <- n
+	log.Printf("Client connected. Total clients: %d", n)
+}
+
+// removeClient removes an SSE client. It is safe to call more than once for
+// the same client (e.g. from both Broadcast and the handler's deferred
+// cleanup); only the first call closes the channel.
 func (s *SSEServer) removeClient(client chan *flowdata.FlowResponse) {
+	s.mu.Lock()
+	if _, ok := s.clients[client]; !ok {
+		s.mu.Unlock()
+		return
+	}
 	delete(s.clients, client)
+	n := len(s.clients)
+	s.mu.Unlock()
 	close(client)
-	log.Printf("Client disconnected. Total clients: %d", len(s.clients))
+	log.Printf("Client disconnected. Total clients: %d", n)
 }
 
 // Broadcast sends data to all connected clients
-func (s *SSEServer) Broadcast(flow *flowdata.FlowResponse) {
-	if len(s.clients) == 0 {
-		panic("No clients connected to broadcast flow")
-	}
+func (s *SSEServer) Broadcast(flow *flowdata.FlowResponse) error {
+	s.mu.Lock()
+	clients := make([]chan *flowdata.FlowResponse, 0, len(s.clients))
 	for client := range s.clients {
+		clients = append(clients, client)
+	}
+	s.mu.Unlock()
+
+	if len(clients) == 0 {
+		return errors.New("no clients connected to broadcast flow")
+	}
+	for _, client := range clients {
 		select {
 		case client <- flow:
 		default:
@@ -237,14 +268,20 @@ func (s *SSEServer) Broadcast(flow *flowdata.FlowResponse) {
 			s.removeClient(client)
 		}
 	}
+	return nil
 }
 
-func (s *SSEServer) BroadcastFlowPairs(flowPairs map[string]FlowPair) {
+func (s *SSEServer) BroadcastFlowPairs(flowPairs map[string]FlowPair) error {
 	log.Printf("Broadcasting %d flow pairs", len(flowPairs))
 	for _, fp := range flowPairs {
-		s.Broadcast(fp.SrcFlow)
-		s.Broadcast(fp.DstFlow)
+		if err := s.Broadcast(fp.SrcFlow); err != nil {
+			return err
+		}
+		if err := s.Broadcast(fp.DstFlow); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // startBroadcaster begins the periodic data generation and broadcasting
@@ -252,9 +289,11 @@ func (s *SSEServer) startBroadcaster() {
 	ticker := time.NewTicker(s.config.StreamInterval)
 	go func() {
 		for range ticker.C {
-			if len(s.clients) > 0 {
+			if s.clientCount() > 0 {
 				flowPairs := s.GenerateFlowPairs()
-				s.BroadcastFlowPairs(flowPairs)
+				if err := s.BroadcastFlowPairs(flowPairs); err != nil {
+					log.Printf("Error broadcasting flow pairs: %v", err)
+				}
 			}
 		}
 	}()
@@ -263,7 +302,7 @@ func (s *SSEServer) startBroadcaster() {
 // sseHandler handles Server-Sent Events connections
 func (s *SSEServer) sseHandler(w http.ResponseWriter, r *http.Request) {
 	// Check client limit
-	if len(s.clients) >= s.config.MaxClients {
+	if s.clientCount() >= s.config.MaxClients {
 		http.Error(w, "Maximum clients reached", http.StatusTooManyRequests)
 		return
 	}
@@ -313,28 +352,36 @@ func (s *SSEServer) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-// Start begins the SSE server
+// Start begins the SSE server. The listener is bound before ready is
+// signaled so that URL() returns the resolved (possibly ephemeral) port by
+// the time a caller observes readiness.
 func (s *SSEServer) Start(ready chan bool) error {
 	if s.config.AutoBroadcast {
 		s.startBroadcaster()
 	}
 
-	http.HandleFunc("/events", s.sseHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/events", s.sseHandler)
 
 	addr := ":" + strconv.Itoa(s.config.Port)
-	s.server = &http.Server{Addr: addr}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	s.port = listener.Addr().(*net.TCPAddr).Port
+	s.server = &http.Server{Handler: mux}
 
-	log.Printf("Starting SSE server on %s", addr)
+	log.Printf("Starting SSE server on %s", listener.Addr().String())
 
 	if ready != nil {
 		close(ready)
 	}
-	if err := s.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+	if err := s.server.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
 func (s *SSEServer) URL() string {
-	return fmt.Sprintf("http://localhost:%d/events", s.config.Port)
+	return fmt.Sprintf("http://localhost:%d/events", s.port)
 }

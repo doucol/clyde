@@ -50,8 +50,24 @@ func NewFlowCache(ctx context.Context, fds FlowDataStore) *FlowCache {
 	return fc
 }
 
-func (fc *FlowCache) cacheSortedFlowSums(cacheKey string, fieldName string, ascending bool) []*flowdata.FlowSum {
-	flowSums, _ := fc.flowSumCache.Get(flowSumCacheName)
+// filterTag returns a stable cache-key suffix for a filter. The empty filter
+// yields no suffix so the common (unfiltered) case keeps a stable base key.
+// Including the filter in every cache key ensures a filter change produces a
+// cache miss and fresh results, rather than serving stale entries until the
+// next refresh/TTL.
+func filterTag(f flowdata.FilterAttributes) string {
+	if f == (flowdata.FilterAttributes{}) {
+		return ""
+	}
+	return fmt.Sprintf("|f=%v", f)
+}
+
+func (fc *FlowCache) baseKey(filter flowdata.FilterAttributes) string {
+	return flowSumCacheName + filterTag(filter)
+}
+
+func (fc *FlowCache) cacheSortedFlowSums(cacheKey, fieldName string, ascending bool, filter flowdata.FilterAttributes) []*flowdata.FlowSum {
+	flowSums, _ := fc.flowSumCache.Get(fc.baseKey(filter))
 	if flowSums == nil {
 		flowSums = fc.cacheFlowSums()
 	}
@@ -66,17 +82,18 @@ func (fc *FlowCache) cacheSortedFlowSums(cacheKey string, fieldName string, asce
 }
 
 func (fc *FlowCache) getFlowSums(sortBy string, asc bool) []*flowdata.FlowSum {
-	cacheKey := flowSumCacheName
+	filter := global.GetFilter()
+	cacheKey := fc.baseKey(filter)
 	if sortBy != "" {
-		cacheKey = fmt.Sprintf("%s-%s-%t", flowSumCacheName, sortBy, asc)
+		cacheKey = fmt.Sprintf("%s-%s-%t", cacheKey, sortBy, asc)
 	}
 	if flowSums, ok := fc.flowSumCache.Get(cacheKey); ok || len(flowSums) > 0 {
 		if !ok && sortBy != "" {
-			go fc.cacheSortedFlowSums(cacheKey, sortBy, asc)
+			go fc.cacheSortedFlowSums(cacheKey, sortBy, asc, filter)
 		}
 		return flowSums
 	} else if sortBy != "" {
-		return fc.cacheSortedFlowSums(cacheKey, sortBy, asc)
+		return fc.cacheSortedFlowSums(cacheKey, sortBy, asc, filter)
 	}
 	return fc.cacheFlowSums()
 }
@@ -92,28 +109,32 @@ func (fc *FlowCache) GetFlowSumRates() []*flowdata.FlowSum {
 }
 
 func (fc *FlowCache) GetFlowsBySumID(sumID int) []*flowdata.FlowData {
-	key := fmt.Sprintf("%s-%d", flowDataBySumID, sumID)
+	filter := global.GetFilter()
+	key := fmt.Sprintf("%s-%d%s", flowDataBySumID, sumID, filterTag(filter))
 	if flows, ok := fc.flowCache.Get(key); ok || len(flows) > 0 {
 		if !ok {
-			go fc.cacheFlowsBySumID(key, sumID)
+			go fc.cacheFlowsBySumID(key, sumID, filter)
 		}
 		return flows
 	}
-	return fc.cacheFlowsBySumID(key, sumID)
+	return fc.cacheFlowsBySumID(key, sumID, filter)
 }
 
 func (fc *FlowCache) refreshCache() {
 	fc.cacheFlowSums()
 }
 
-func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int) []*flowdata.FlowData {
-	flows := fc.fds.GetFlowsBySumID(sumID, global.GetFilter())
+func (fc *FlowCache) cacheFlowsBySumID(key string, sumID int, filter flowdata.FilterAttributes) []*flowdata.FlowData {
+	flows := fc.fds.GetFlowsBySumID(sumID, filter)
 	fc.flowCache.SetTTL(key, flows, 5*time.Second)
 	return flows
 }
 
 func (fc *FlowCache) cacheFlowSums() []*flowdata.FlowSum {
-	flowSums := fc.fds.GetFlowSums(global.GetFilter())
-	fc.flowSumCache.Set(flowSumCacheName, flowSums)
+	filter := global.GetFilter()
+	flowSums := fc.fds.GetFlowSums(filter)
+	// TTL (rather than forever) so cached sets for filters no longer in use
+	// are eventually culled; the 2s refresh loop keeps the active set warm.
+	fc.flowSumCache.SetTTL(fc.baseKey(filter), flowSums, 10*time.Second)
 	return flowSums
 }

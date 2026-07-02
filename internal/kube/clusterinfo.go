@@ -1,9 +1,7 @@
-package util
+package kube
 
 import (
 	context "context"
-	fmt "fmt"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strings"
@@ -39,7 +37,7 @@ type ClusterNetworkingInfo struct {
 func DetectCNIType(ctx context.Context, clientset kubernetes.Interface) (string, error) {
 	// Check multiple namespaces where CNI components might be deployed
 	namespaces := []string{"kube-system", "calico-system", "tigera-operator"}
-	
+
 	for _, namespace := range namespaces {
 		// Check DaemonSets first
 		daemonsets, err := clientset.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{})
@@ -69,7 +67,7 @@ func DetectCNIType(ctx context.Context, clientset kubernetes.Interface) (string,
 				}
 			}
 		}
-		
+
 		// Also check pods for Calico images (especially useful for operator-managed installs)
 		pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 		if err == nil {
@@ -92,7 +90,7 @@ func DetectCNIType(ctx context.Context, clientset kubernetes.Interface) (string,
 			}
 		}
 	}
-	
+
 	return "Unknown", nil
 }
 
@@ -130,28 +128,28 @@ func GetOperatorPods(ctx context.Context, clientset kubernetes.Interface, ns str
 	if ns == "" {
 		ns = "calico-system"
 	}
-	
+
 	// Try multiple namespaces where the operator might be installed
 	namespaces := []string{ns, "tigera-operator", "calico-operator"}
-	
+
 	verSet := map[string]struct{}{}
-	
+
 	for _, namespace := range namespaces {
 		// Try different label selectors that are commonly used for Tigera/Calico operator
 		labelSelectors := []string{
 			"k8s-app=tigera-operator",
-			"name=tigera-operator", 
+			"name=tigera-operator",
 			"app.kubernetes.io/name=tigera-operator",
 			"k8s-app=calico-operator",
 			"name=calico-operator",
 		}
-		
+
 		for _, selector := range labelSelectors {
 			podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
 			if err != nil {
 				continue // Try next selector
 			}
-			
+
 			for _, pod := range podList.Items {
 				pods = append(pods, pod.Name)
 				for _, c := range pod.Spec.Containers {
@@ -164,7 +162,7 @@ func GetOperatorPods(ctx context.Context, clientset kubernetes.Interface, ns str
 				}
 			}
 		}
-		
+
 		// Also try looking for deployments with operator in the name
 		deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
 		if err == nil {
@@ -183,13 +181,13 @@ func GetOperatorPods(ctx context.Context, clientset kubernetes.Interface, ns str
 				}
 			}
 		}
-		
+
 		// If we found something in this namespace, we can break
 		if len(pods) > 0 {
 			break
 		}
 	}
-	
+
 	if len(verSet) > 0 {
 		vers := make([]string, 0, len(verSet))
 		for v := range verSet {
@@ -208,35 +206,6 @@ func parseImageVersion(image string) string {
 		return strings.TrimPrefix(parts[1], "v")
 	}
 	return ""
-}
-
-// CompareVersions returns true if v1 >= v2 (semantic versioning, only major.minor.patch)
-func CompareVersions(v1, v2 string) bool {
-	parse := func(v string) (int, int, int) {
-		var major, minor, patch int
-		fmt.Sscanf(v, "%d.%d.%d", &major, &minor, &patch)
-		return major, minor, patch
-	}
-	m1, n1, p1 := parse(v1)
-	m2, n2, p2 := parse(v2)
-	if m1 != m2 {
-		return m1 > m2
-	}
-	if n1 != n2 {
-		return n1 > n2
-	}
-	return p1 >= p2
-}
-
-// InstallCalicoOperator applies the official manifest using kubectl (requires kubectl in PATH)
-func InstallCalicoOperator(ctx context.Context) error {
-	url := "https://docs.projectcalico.org/manifests/tigera-operator.yaml"
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", url)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to install Calico operator: %v\n%s", err, string(out))
-	}
-	return nil
 }
 
 // GetPodCIDRs tries to fetch pod CIDRs from kubeadm-config ConfigMap and/or Calico IPPool CRDs
@@ -320,12 +289,12 @@ func GetWhiskerAvailability(ctx context.Context, clientset kubernetes.Interface,
 	if namespace == "" {
 		namespace = "calico-system"
 	}
-	
+
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return false
 	}
-	
+
 	for _, pod := range pods.Items {
 		if pod.Status.Phase != "Running" {
 			continue
@@ -342,8 +311,8 @@ func GetWhiskerAvailability(ctx context.Context, clientset kubernetes.Interface,
 // GetClusterNetworkingInfo gathers all cluster networking information
 func GetClusterNetworkingInfo(ctx context.Context, clientset kubernetes.Interface, dyn dynamic.Interface, restConfig *rest.Config) ClusterNetworkingInfo {
 	info := ClusterNetworkingInfo{
-		CalicoNamespace:   "calico-system",
-		CalicoOperatorNS:  "calico-system",
+		CalicoNamespace:  "calico-system",
+		CalicoOperatorNS: "calico-system",
 	}
 	var errs []string
 	cni, err := DetectCNIType(ctx, clientset)
@@ -378,7 +347,7 @@ func GetClusterNetworkingInfo(ctx context.Context, clientset kubernetes.Interfac
 	}
 	// Check whisker availability
 	info.WhiskerAvailable = GetWhiskerAvailability(ctx, clientset, info.CalicoNamespace)
-	
+
 	info.Errors = errs
 	return info
 }

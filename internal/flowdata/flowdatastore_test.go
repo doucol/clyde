@@ -1,7 +1,6 @@
 package flowdata
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -9,8 +8,7 @@ import (
 func TestNewFlowDataStore(t *testing.T) {
 	// Create a temporary directory for the test database
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	fds, err := NewFlowDataStore()
 	if err != nil {
@@ -44,8 +42,7 @@ func TestNewFlowDataStore_DatabaseError(t *testing.T) {
 func TestClear(t *testing.T) {
 	// Create a temporary directory for the test database
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	// Create a FlowDataStore to ensure the database file exists
 	fds, err := NewFlowDataStore()
@@ -69,8 +66,7 @@ func TestClear(t *testing.T) {
 
 func TestFlowDataStore_ChannelMethods(t *testing.T) {
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	fds, err := NewFlowDataStore()
 	if err != nil {
@@ -377,8 +373,7 @@ func TestFlowerInterface(t *testing.T) {
 func TestDbPath(t *testing.T) {
 	// Create a temporary directory for the test
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	path := dbPath()
 	if path == "" {
@@ -393,8 +388,7 @@ func TestDbPath(t *testing.T) {
 
 func TestFlowDataStore_Configuration(t *testing.T) {
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	fds, err := NewFlowDataStore()
 	if err != nil {
@@ -448,8 +442,7 @@ func TestChanSignal(t *testing.T) {
 
 func TestFlowDataStore_Close(t *testing.T) {
 	tempDir := t.TempDir()
-	os.Setenv("HOME", tempDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", tempDir)
 
 	fds, err := NewFlowDataStore()
 	if err != nil {

@@ -66,12 +66,12 @@ func TestReporterEnum(t *testing.T) {
 func TestPolicyKindEnum(t *testing.T) {
 	// Test a few key PolicyKind constants
 	expectedPolicyKinds := map[PolicyKind]string{
-		PolicyKind_KindUnspecified:               "KindUnspecified",
-		PolicyKind_CalicoNetworkPolicy:           "CalicoNetworkPolicy",
-		PolicyKind_GlobalNetworkPolicy:           "GlobalNetworkPolicy",
-		PolicyKind_NetworkPolicy:                 "NetworkPolicy",
-		PolicyKind_Profile:                       "Profile",
-		PolicyKind_EndOfTier:                     "EndOfTier",
+		PolicyKind_KindUnspecified:     "KindUnspecified",
+		PolicyKind_CalicoNetworkPolicy: "CalicoNetworkPolicy",
+		PolicyKind_GlobalNetworkPolicy: "GlobalNetworkPolicy",
+		PolicyKind_NetworkPolicy:       "NetworkPolicy",
+		PolicyKind_Profile:             "Profile",
+		PolicyKind_EndOfTier:           "EndOfTier",
 	}
 
 	for policyKind, expected := range expectedPolicyKinds {
@@ -82,12 +82,12 @@ func TestPolicyKindEnum(t *testing.T) {
 
 	// Test PolicyKind_value map for key entries
 	expectedValues := map[string]int32{
-		"KindUnspecified":       0,
-		"CalicoNetworkPolicy":   1,
-		"GlobalNetworkPolicy":   2,
-		"NetworkPolicy":         6,
-		"Profile":               9,
-		"EndOfTier":             10,
+		"KindUnspecified":     0,
+		"CalicoNetworkPolicy": 1,
+		"GlobalNetworkPolicy": 2,
+		"NetworkPolicy":       6,
+		"Profile":             9,
+		"EndOfTier":           10,
 	}
 
 	for name, expectedValue := range expectedValues {
@@ -252,7 +252,10 @@ func TestFlowToFlowSum_NewSum(t *testing.T) {
 		},
 	}
 
-	result := flowToFlowSum(fd, nil)
+	result, err := flowToFlowSum(fd, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if result == nil {
 		t.Fatal("expected flowToFlowSum to return non-nil FlowSum")
@@ -293,12 +296,12 @@ func TestFlowToFlowSum_ExistingSum(t *testing.T) {
 	newEndTime := time.Now()
 
 	existing := &FlowSum{
-		Key:                 "test|key",
-		StartTime:           originalStartTime,
-		EndTime:             originalEndTime,
-		SourceReports:       1,
-		SourcePacketsIn:     50,
-		SourceLabels:        "app=test,version=v1",
+		Key:             "test|key",
+		StartTime:       originalStartTime,
+		EndTime:         originalEndTime,
+		SourceReports:   1,
+		SourcePacketsIn: 50,
+		SourceLabels:    "app=test,version=v1",
 	}
 
 	fd := &FlowData{
@@ -318,7 +321,10 @@ func TestFlowToFlowSum_ExistingSum(t *testing.T) {
 		},
 	}
 
-	result := flowToFlowSum(fd, existing)
+	result, err := flowToFlowSum(fd, existing)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if result != existing {
 		t.Error("expected flowToFlowSum to return the same FlowSum instance")
@@ -346,15 +352,18 @@ func TestFlowToFlowSum_ExistingSum(t *testing.T) {
 func TestFlowToFlowSum_DestReporter(t *testing.T) {
 	fd := &FlowData{
 		FlowResponse: FlowResponse{
-			Reporter:      "Dst",
-			PacketsIn:     200,
-			PacketsOut:    150,
-			BytesIn:       2000,
-			BytesOut:      1500,
+			Reporter:   "Dst",
+			PacketsIn:  200,
+			PacketsOut: 150,
+			BytesIn:    2000,
+			BytesOut:   1500,
 		},
 	}
 
-	result := flowToFlowSum(fd, nil)
+	result, err := flowToFlowSum(fd, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Verify dest reporter stats
 	if result.DestReports != 1 {
@@ -389,13 +398,13 @@ func TestFlowToFlowSum_UnknownReporter(t *testing.T) {
 		},
 	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic for unknown reporter")
-		}
-	}()
-
-	flowToFlowSum(fd, nil)
+	result, err := flowToFlowSum(fd, nil)
+	if err == nil {
+		t.Error("expected error for unknown reporter")
+	}
+	if result != nil {
+		t.Errorf("expected nil FlowSum on error, got %+v", result)
+	}
 }
 
 func TestFilterAttributes_ZeroValue(t *testing.T) {
@@ -509,4 +518,4 @@ func TestFlowResponse_Structure(t *testing.T) {
 	if fr.PacketsIn != 100 {
 		t.Errorf("expected PacketsIn = 100, got %d", fr.PacketsIn)
 	}
-} 
+}

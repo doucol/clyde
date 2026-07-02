@@ -114,21 +114,7 @@ func (m sumDetailModel) setFlows(flows []*flowdata.FlowData) sumDetailModel {
 }
 
 func (m sumDetailModel) cursorFromState() int {
-	if len(m.flows) == 0 {
-		return 0
-	}
-	row := m.fas.flowRow
-	if row == 0 {
-		row = 1
-	}
-	cursor := row - 1
-	if cursor >= len(m.flows) {
-		cursor = len(m.flows) - 1
-	}
-	if cursor < 0 {
-		cursor = 0
-	}
-	return cursor
+	return clampCursor(m.fas.flowRow, len(m.flows))
 }
 
 func (m sumDetailModel) styledRows(cursor int) []table.Row {
@@ -147,20 +133,7 @@ func (m sumDetailModel) styledRows(cursor int) []table.Row {
 			intos(fd.BytesOut),
 			actionStyled(fd.Action),
 		}
-		styled := make(table.Row, len(base))
-		sel := i == cursor
-		for c, val := range base {
-			w := 0
-			if c < len(cols) {
-				w = cols[c].Width
-			}
-			if w <= 0 {
-				styled[c] = val
-				continue
-			}
-			styled[c] = styleDataCell(val, w, sel)
-		}
-		tableRows[i] = styled
+		tableRows[i] = styleRow(base, cols, i == cursor)
 	}
 	return tableRows
 }
@@ -170,17 +143,7 @@ func (m *sumDetailModel) syncCursor() {
 		m.fas.setFlow(0, 0)
 		return
 	}
-	row := m.fas.flowRow
-	if row == 0 {
-		row = 1
-	}
-	cursor := row - 1
-	if cursor >= len(m.flows) {
-		cursor = len(m.flows) - 1
-	}
-	if cursor < 0 {
-		cursor = 0
-	}
+	cursor := clampCursor(m.fas.flowRow, len(m.flows))
 	m.table.SetCursor(cursor)
 	m.fas.setFlow(m.flows[cursor].ID, cursor+1)
 }

@@ -1,4 +1,4 @@
-package util
+package kube
 
 import (
 	"context"
@@ -59,85 +59,6 @@ func TestParseImageVersion(t *testing.T) {
 			result := parseImageVersion(tt.image)
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestCompareVersions(t *testing.T) {
-	tests := []struct {
-		name     string
-		v1       string
-		v2       string
-		expected bool
-	}{
-		{
-			name:     "v1 greater than v2",
-			v1:       "3.30.0",
-			v2:       "3.29.0",
-			expected: true,
-		},
-		{
-			name:     "v1 equal to v2",
-			v1:       "3.30.0",
-			v2:       "3.30.0",
-			expected: true,
-		},
-		{
-			name:     "v1 less than v2",
-			v1:       "3.29.0",
-			v2:       "3.30.0",
-			expected: false,
-		},
-		{
-			name:     "Major version difference",
-			v1:       "4.0.0",
-			v2:       "3.30.0",
-			expected: true,
-		},
-		{
-			name:     "Minor version difference",
-			v1:       "3.30.1",
-			v2:       "3.30.0",
-			expected: true,
-		},
-		{
-			name:     "Patch version equal",
-			v1:       "3.30.1",
-			v2:       "3.30.1",
-			expected: true,
-		},
-		{
-			name:     "Single digit versions",
-			v1:       "1.0.0",
-			v2:       "1.0.0",
-			expected: true,
-		},
-		{
-			name:     "Invalid version format v1",
-			v1:       "invalid",
-			v2:       "3.30.0",
-			expected: false,
-		},
-		{
-			name:     "Invalid version format v2",
-			v1:       "3.30.0",
-			v2:       "invalid",
-			expected: true,
-		},
-		{
-			name:     "Empty versions",
-			v1:       "",
-			v2:       "",
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := CompareVersions(tt.v1, tt.v2)
-			if result != tt.expected {
-				t.Errorf("CompareVersions(%s, %s) = %v, expected %v", tt.v1, tt.v2, result, tt.expected)
 			}
 		})
 	}

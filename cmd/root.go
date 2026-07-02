@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -11,8 +10,11 @@ import (
 	"syscall"
 
 	"github.com/doucol/clyde/internal/cmdctx"
+	"github.com/doucol/clyde/internal/flowcache"
+	"github.com/doucol/clyde/internal/flowdata"
+	"github.com/doucol/clyde/internal/kube"
 	"github.com/doucol/clyde/internal/logger"
-	"github.com/doucol/clyde/internal/util"
+	"github.com/doucol/clyde/internal/tui"
 	"github.com/doucol/clyde/internal/whisker"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,6 +35,9 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := whisker.DefaultConfig()
+		cfg.NewUI = func(fds *flowdata.FlowDataStore, fc *flowcache.FlowCache) whisker.FlowUI {
+			return tui.NewFlowApp(fds, fc)
+		}
 		w := whisker.New(cfg)
 		return w.WatchFlows(cmd.Context(), nil)
 	},
@@ -61,13 +66,15 @@ func Execute() int {
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, os.Interrupt, syscall.SIGTERM)
 
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		initLogger()
-		source := util.KubeconfigSourceDefault
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := initLogger(); err != nil {
+			return err
+		}
+		source := kube.KubeconfigSourceDefault
 		if cmd.Flags().Changed("kubeconfig") {
-			source = util.KubeconfigSourceFlag
+			source = kube.KubeconfigSourceFlag
 		} else if os.Getenv("KUBECONFIG") != "" {
-			source = util.KubeconfigSourceEnv
+			source = kube.KubeconfigSourceEnv
 		}
 		cc := cmdctx.NewCmdCtx(kubeConfig, source, kubeContext)
 		ctx := cc.ToContext(cmd.Context())
@@ -77,6 +84,7 @@ func Execute() int {
 			cc.Cancel()
 		}()
 		cmd.SetContext(ctx)
+		return nil
 	}
 	defer closeLogger()
 	if err := rootCmd.Execute(); err != nil {
@@ -86,37 +94,30 @@ func Execute() int {
 	return 0
 }
 
-func initLogger() {
+func initLogger() error {
 	logger.SetLogFile(logFile)
-	switch logLevel {
-	case "trace":
-		logrus.SetLevel(logrus.TraceLevel)
-	case "debug":
-		logrus.SetLevel(logrus.DebugLevel)
-	case "info":
-		logrus.SetLevel(logrus.InfoLevel)
-	case "warn":
-		logrus.SetLevel(logrus.WarnLevel)
-	case "error":
-		logrus.SetLevel(logrus.ErrorLevel)
-	default:
-		panic(errors.New("invalid log level: " + logLevel))
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		return fmt.Errorf("invalid log level %q: %w", logLevel, err)
 	}
+	logrus.SetLevel(level)
 
-	var err error
 	logStore, err = logger.NewLogger()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	log.SetOutput(logStore)
 	klog.SetOutput(logStore)
 	logrus.SetOutput(logStore)
 	logrus.Infof("Logger initialized. Log level set to '%s'", logLevel)
+	return nil
 }
 
 func closeLogger() {
 	if logStore != nil {
 		logStore.Close()
-		logStore.Dump(os.Stderr)
+		if err := logStore.Dump(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "clyde: error dumping log: %v\n", err)
+		}
 	}
 }

@@ -17,10 +17,6 @@ type keyMap struct {
 	SortDstByte key.Binding
 	Up          key.Binding
 	Down        key.Binding
-	PageUp      key.Binding
-	PageDown    key.Binding
-	GotoTop     key.Binding
-	GotoBottom  key.Binding
 	Enter       key.Binding
 }
 
@@ -74,13 +70,9 @@ func newKeyMap() keyMap {
 			key.WithKeys("B"),
 			key.WithHelp("B", "sort dst byte rate"),
 		),
-		Up:         key.NewBinding(key.WithKeys("up", "k")),
-		Down:       key.NewBinding(key.WithKeys("down", "j")),
-		PageUp:     key.NewBinding(key.WithKeys("pgup")),
-		PageDown:   key.NewBinding(key.WithKeys("pgdown")),
-		GotoTop:    key.NewBinding(key.WithKeys("home", "g")),
-		GotoBottom: key.NewBinding(key.WithKeys("end", "G")),
-		Enter:      key.NewBinding(key.WithKeys("enter")),
+		Up:    key.NewBinding(key.WithKeys("up", "k")),
+		Down:  key.NewBinding(key.WithKeys("down", "j")),
+		Enter: key.NewBinding(key.WithKeys("enter")),
 	}
 }
 

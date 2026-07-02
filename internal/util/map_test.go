@@ -1,7 +1,6 @@
 package util
 
 import (
-	"regexp"
 	"testing"
 )
 
@@ -42,51 +41,6 @@ func TestGetMapKeys(t *testing.T) {
 				if !expectedMap[k] {
 					t.Errorf("GetMapKeys() returned unexpected key: %v", k)
 				}
-			}
-		})
-	}
-}
-
-func TestJoinMapKeys(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    map[string]any
-		sep      string
-		expected *regexp.Regexp
-	}{
-		{
-			name:     "empty map",
-			input:    map[string]any{},
-			sep:      ",",
-			expected: regexp.MustCompile(`^$`),
-		},
-		{
-			name: "map with values",
-			input: map[string]any{
-				"a": 1,
-				"b": "two",
-				"c": true,
-			},
-			sep:      ",",
-			expected: regexp.MustCompile(`^[abc],[abc],[abc]$`),
-		},
-		{
-			name: "map with values and custom separator",
-			input: map[string]any{
-				"a": 1,
-				"b": "two",
-				"c": true,
-			},
-			sep:      " | ",
-			expected: regexp.MustCompile(`^[abc] | [abc] | [abc]$`),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := JoinMapKeys(tt.input, tt.sep)
-			if !tt.expected.MatchString(result) {
-				t.Errorf("JoinMapKeys() = %v; want %v", result, tt.expected)
 			}
 		})
 	}

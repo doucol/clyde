@@ -89,6 +89,29 @@ func TestChanClose(t *testing.T) {
 					t.Errorf("Channel %d is not closed", i)
 				}
 			}
+
+			// Closing again must be a safe no-op (idempotent), not a panic.
+			ChanClose(channels...)
 		})
+	}
+}
+
+func TestChanCloseIdempotentAndNilSafe(t *testing.T) {
+	// A nil channel in the list is skipped.
+	var nilCh chan int
+	ch := make(chan int)
+	ChanClose(nilCh, ch)
+
+	// Repeated close of the same channel does not panic.
+	ChanClose(ch)
+	ChanClose(ch, ch)
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Error("expected channel to be closed")
+		}
+	default:
+		t.Error("expected channel to be closed")
 	}
 }

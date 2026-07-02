@@ -2,8 +2,6 @@ package test
 
 import (
 	"context"
-	"log"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -24,9 +22,7 @@ func clearTestData(t *testing.T) {
 func TestFlowData(t *testing.T) {
 	t.Log("Starting Functional Validation (FV) testing...")
 	logrus.SetLevel(logrus.InfoLevel)
-	if err := os.Setenv("XDG_DATA_HOME", os.TempDir()); err != nil {
-		t.Fatalf("Failed to set XDG_DATA_HOME: %v", err)
-	}
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
 	clearTestData(t)
 	defer clearTestData(t)
@@ -47,7 +43,7 @@ func TestFlowData(t *testing.T) {
 	go func() {
 		defer wgMock.Done()
 		if err := server.Start(mockReady); err != nil {
-			log.Fatalf("Failed to start SSE server: %v", err)
+			t.Errorf("Failed to start SSE server: %v", err)
 		}
 	}()
 
@@ -68,7 +64,7 @@ func TestFlowData(t *testing.T) {
 		wc.URL = server.URL()
 		wh = whisker.New(wc)
 		if err := wh.WatchFlows(ctx, whiskerReady); err != nil {
-			log.Fatalf("Failed to watch flows: %v", err)
+			t.Errorf("Failed to watch flows: %v", err)
 		}
 	}()
 
@@ -131,7 +127,9 @@ func TestFlowData(t *testing.T) {
 		}(name, s.channel, s.count)
 	}
 	close(start)
-	server.BroadcastFlowPairs(pairs)
+	if err := server.BroadcastFlowPairs(pairs); err != nil {
+		t.Fatalf("Failed to broadcast flow pairs: %v", err)
+	}
 	wg.Wait()
 
 	t.Logf("Cancelling context to stop whisker")

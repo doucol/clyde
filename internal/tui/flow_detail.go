@@ -87,13 +87,6 @@ func (m flowDetailModel) Update(msg tea.Msg) (flowDetailModel, tea.Cmd) {
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
-	case tea.MouseWheelMsg:
-		if !m.focused {
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-		return m, cmd
 	}
 	return m, nil
 }

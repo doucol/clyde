@@ -14,10 +14,10 @@ func CompareStructFields(obj1, obj2 any, fieldName1, fieldName2 string) bool {
 	val2 := reflect.ValueOf(obj2)
 
 	// Handle pointers
-	if val1.Kind() == reflect.Ptr {
+	if val1.Kind() == reflect.Pointer {
 		val1 = val1.Elem()
 	}
-	if val2.Kind() == reflect.Ptr {
+	if val2.Kind() == reflect.Pointer {
 		val2 = val2.Elem()
 	}
 

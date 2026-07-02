@@ -8,7 +8,7 @@ import (
 
 	"github.com/doucol/clyde/internal/cmdctx"
 	"github.com/doucol/clyde/internal/flowdata"
-	"github.com/doucol/clyde/internal/util"
+	"github.com/doucol/clyde/internal/kube"
 )
 
 const refreshInterval = 2 * time.Second
@@ -25,7 +25,7 @@ type flowsBySumMsg struct {
 }
 
 type clusterReadyMsg struct {
-	info util.ClusterNetworkingInfo
+	info kube.ClusterNetworkingInfo
 }
 
 func tickCmd() tea.Cmd {
@@ -63,7 +63,7 @@ func fetchFlowsBySum(fc dataProvider, sumID int) tea.Cmd {
 func checkClusterReadyCmd(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
 		cc := cmdctx.CmdCtxFromContext(ctx)
-		info := util.GetClusterNetworkingInfo(ctx, cc.Clientset(), cc.ClientDyn(), cc.GetK8sConfig())
+		info := kube.GetClusterNetworkingInfo(ctx, cc.Clientset(), cc.ClientDyn(), cc.GetK8sConfig())
 		return clusterReadyMsg{info: info}
 	}
 }

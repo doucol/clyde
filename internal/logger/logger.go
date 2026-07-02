@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,6 +34,14 @@ func GetDefaultLogFile() string {
 
 func NewLogger() (*Logger, error) {
 	lp := GetLogFile()
+	// Open the file synchronously so a failure (e.g. an unwritable path passed
+	// via --logfile) is returned to the caller instead of panicking in a
+	// goroutine that would crash the whole process.
+	flags := os.O_CREATE | os.O_TRUNC | os.O_WRONLY
+	lf, err := os.OpenFile(lp, flags, 0o644)
+	if err != nil {
+		return nil, err
+	}
 	msgs := make(chan []byte, 1000)
 	wg := &sync.WaitGroup{}
 	ls := &Logger{
@@ -42,19 +51,18 @@ func NewLogger() (*Logger, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		flags := os.O_CREATE | os.O_TRUNC | os.O_WRONLY | os.O_APPEND
-		lf, err := os.OpenFile(lp, flags, 0666)
-		if err != nil {
-			panic(err)
-		}
-		defer lf.Close()
+		defer func() {
+			if cerr := lf.Close(); cerr != nil {
+				fmt.Fprintf(os.Stderr, "clyde: error closing log file: %v\n", cerr)
+			}
+		}()
 		for p := range msgs {
 			if len(p) == 0 {
 				return
 			}
-			_, err := lf.Write(p)
-			if err != nil {
-				panic(err)
+			if _, err := lf.Write(p); err != nil {
+				fmt.Fprintf(os.Stderr, "clyde: error writing to log file: %v\n", err)
+				return
 			}
 		}
 	}()
@@ -77,14 +85,12 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 	return length, nil
 }
 
-func (l *Logger) Dump(to io.Writer) {
+func (l *Logger) Dump(to io.Writer) error {
 	lf, err := os.Open(GetLogFile())
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer lf.Close()
+	defer func() { _ = lf.Close() }()
 	_, err = lf.WriteTo(to)
-	if err != nil {
-		panic(err)
-	}
+	return err
 }

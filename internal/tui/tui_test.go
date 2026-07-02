@@ -258,18 +258,6 @@ func TestPageConstants(t *testing.T) {
 	}
 }
 
-func TestFlowApp_UpdateSort_InvalidPageName(t *testing.T) {
-	var fds *flowdata.FlowDataStore
-	var fc *flowcache.FlowCache
-	fa := NewFlowApp(fds, fc)
-
-	// updateSort returns a non-nil sentinel when the page is unknown.
-	result := fa.updateSort(nil, "testField", true, "invalidPage")
-	if result == nil {
-		t.Error("expected updateSort to pass through the event for an invalid page")
-	}
-}
-
 func TestFlowAppState_ConcurrentAccess(t *testing.T) {
 	fas := &flowAppState{}
 

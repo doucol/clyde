@@ -1,4 +1,6 @@
-package util
+// Package kube provides Kubernetes cluster and kubeconfig introspection for
+// Calico/Whisker, including CNI detection and cluster networking metadata.
+package kube
 
 import (
 	"fmt"

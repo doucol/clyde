@@ -15,14 +15,22 @@ import (
 )
 
 type FlowDataStore struct {
-	db               *storm.DB
-	inFlow           chan Flower
-	wg               *sync.WaitGroup
-	stop             chan struct{}
+	db     *storm.DB
+	inFlow chan Flower
+	wg     *sync.WaitGroup
+	stop   chan struct{}
+
+	// The event channels below are lazily created by their accessors and are
+	// read by the consumer goroutine, so access is guarded by chanMu. They are
+	// used purely as observation hooks (currently only by tests); in normal
+	// operation no accessor is called, the fields stay nil, and chanSignal is a
+	// cheap no-op.
+	chanMu           sync.RWMutex
 	flowAdded        chan Flower
 	flowSumAdded     chan Flower
 	flowSumsUpdated  chan Flower
 	flowRatesUpdated chan Flower
+
 	RateCalcWindow   int
 	RateCalcInterval int
 }
@@ -94,21 +102,28 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 				case *FlowData:
 					fs, newSum, err := fds.addFlow(fl)
 					if err != nil {
-						panic(err)
+						logrus.WithError(err).Error("error adding flow; skipping")
+						continue
 					}
-					chanSignal(fds.flowAdded, f)
+					fds.chanMu.RLock()
+					cAdded, cSumAdded, cSumsUpdated := fds.flowAdded, fds.flowSumAdded, fds.flowSumsUpdated
+					fds.chanMu.RUnlock()
+					chanSignal(cAdded, f)
 					if newSum {
-						chanSignal(fds.flowSumAdded, f)
+						chanSignal(cSumAdded, f)
 						logrus.Tracef("added flow data: new flow sum: %s", fs.Key)
 					} else {
-						chanSignal(fds.flowSumsUpdated, f)
+						chanSignal(cSumsUpdated, f)
 						logrus.Tracef("added flow data: existing flow sum: %s", fs.Key)
 					}
 				case *FlowSum:
-					if err := fds.db.Save(fl); err != nil {
-						logrus.WithError(err).Panic("error saving flow sum")
+					fds.chanMu.RLock()
+					cRates := fds.flowRatesUpdated
+					fds.chanMu.RUnlock()
+					if err := fds.updateRates(fl); err != nil {
+						logrus.WithError(err).Error("error updating flow sum rates")
 					} else {
-						chanSignal(fds.flowRatesUpdated, f)
+						chanSignal(cRates, f)
 						logrus.Tracef("updated flow sum: %s", fl.Key)
 					}
 				default:
@@ -138,6 +153,8 @@ func (fds *FlowDataStore) Run(recoverFunc func()) {
 }
 
 func (fds *FlowDataStore) FlowAdded() chan Flower {
+	fds.chanMu.Lock()
+	defer fds.chanMu.Unlock()
 	if fds.flowAdded == nil {
 		fds.flowAdded = make(chan Flower)
 	}
@@ -145,6 +162,8 @@ func (fds *FlowDataStore) FlowAdded() chan Flower {
 }
 
 func (fds *FlowDataStore) FlowSumAdded() chan Flower {
+	fds.chanMu.Lock()
+	defer fds.chanMu.Unlock()
 	if fds.flowSumAdded == nil {
 		fds.flowSumAdded = make(chan Flower)
 	}
@@ -152,6 +171,8 @@ func (fds *FlowDataStore) FlowSumAdded() chan Flower {
 }
 
 func (fds *FlowDataStore) FlowSumsUpdated() chan Flower {
+	fds.chanMu.Lock()
+	defer fds.chanMu.Unlock()
 	if fds.flowSumsUpdated == nil {
 		fds.flowSumsUpdated = make(chan Flower)
 	}
@@ -159,6 +180,8 @@ func (fds *FlowDataStore) FlowSumsUpdated() chan Flower {
 }
 
 func (fds *FlowDataStore) FlowRatesUpdated() chan Flower {
+	fds.chanMu.Lock()
+	defer fds.chanMu.Unlock()
 	if fds.flowRatesUpdated == nil {
 		fds.flowRatesUpdated = make(chan Flower)
 	}
@@ -176,12 +199,18 @@ func chanSignal[T any](ch chan T, val T) {
 
 func (fds *FlowDataStore) Close() {
 	logrus.Debug("closing flow data store")
+	// Signal shutdown first so the producer (AddFlow) and rate goroutine stop
+	// feeding inFlow, then wait for the store goroutines to drain before
+	// closing the channels they read from.
 	util.ChanClose(fds.stop)
-	defer util.ChanClose(fds.inFlow)
-	defer util.ChanClose(fds.flowAdded, fds.flowSumAdded, fds.flowSumsUpdated, fds.flowRatesUpdated)
 	if fds.wg != nil {
 		fds.wg.Wait()
 	}
+	util.ChanClose(fds.inFlow)
+	fds.chanMu.RLock()
+	added, sumAdded, sumsUpdated, ratesUpdated := fds.flowAdded, fds.flowSumAdded, fds.flowSumsUpdated, fds.flowRatesUpdated
+	fds.chanMu.RUnlock()
+	util.ChanClose(added, sumAdded, sumsUpdated, ratesUpdated)
 	if err := fds.db.Close(); err != nil {
 		logrus.WithError(err).Error("error closing flow data store")
 	}
@@ -208,7 +237,10 @@ func (fds *FlowDataStore) addFlow(fd *FlowData) (*FlowSum, bool, error) {
 			return nil, false, err
 		}
 	}
-	fs = flowToFlowSum(fd, fs)
+	fs, err = flowToFlowSum(fd, fs)
+	if err != nil {
+		return nil, false, err
+	}
 	err = tx.Save(fs)
 	if err != nil {
 		return nil, false, err
@@ -227,11 +259,12 @@ func (fds *FlowDataStore) addFlow(fd *FlowData) (*FlowSum, bool, error) {
 }
 
 func (fds *FlowDataStore) AddFlow(fd *FlowData) {
+	// Select on stop for both cases so a shutdown unblocks a send that would
+	// otherwise wait on a full buffer, and so we never send on a closed inFlow.
 	select {
 	case <-fds.stop:
 		return
-	default:
-		fds.inFlow <- fd
+	case fds.inFlow <- fd:
 	}
 }
 
@@ -301,21 +334,68 @@ func (fds *FlowDataStore) calcRates() {
 		select {
 		case <-fds.stop:
 			return
-		default:
-			fds.inFlow <- fs
+		case fds.inFlow <- fs:
 		}
 	}
+}
+
+// updateRates merges the computed rate fields from a freshly calculated
+// FlowSum into the current persisted record. Only the rate fields are written;
+// the running totals and counters are owned by addFlow. Merging (rather than
+// blindly saving the calculated copy) prevents a lost update when a flow for
+// the same key is ingested between the rate calculation's read and this save.
+func (fds *FlowDataStore) updateRates(rates *FlowSum) error {
+	tx, err := fds.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			runtime.HandleError(tx.Rollback())
+		}
+	}()
+
+	fs := &FlowSum{}
+	if err := tx.One("ID", rates.ID, fs); err != nil {
+		if errors.Is(err, storm.ErrNotFound) {
+			// The sum was removed between rate calculation and this save.
+			return nil
+		}
+		return err
+	}
+
+	fs.SourcePacketsInRate = rates.SourcePacketsInRate
+	fs.SourcePacketsOutRate = rates.SourcePacketsOutRate
+	fs.SourceBytesInRate = rates.SourceBytesInRate
+	fs.SourceBytesOutRate = rates.SourceBytesOutRate
+	fs.DestPacketsInRate = rates.DestPacketsInRate
+	fs.DestPacketsOutRate = rates.DestPacketsOutRate
+	fs.DestBytesInRate = rates.DestBytesInRate
+	fs.DestBytesOutRate = rates.DestBytesOutRate
+	fs.SourceTotalPacketRate = rates.SourceTotalPacketRate
+	fs.SourceTotalByteRate = rates.SourceTotalByteRate
+	fs.DestTotalPacketRate = rates.DestTotalPacketRate
+	fs.DestTotalByteRate = rates.DestTotalByteRate
+
+	if err := tx.Save(fs); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 func (fds *FlowDataStore) GetFlowSum(id int) *FlowSum {
 	fs := &FlowSum{}
 	err := fds.db.One("ID", id, fs)
 	if err != nil {
-		if errors.Is(err, storm.ErrNotFound) {
-			return nil
-		} else {
-			logrus.WithError(err).Panic("error getting flow sum")
+		if !errors.Is(err, storm.ErrNotFound) {
+			logrus.WithError(err).Error("error getting flow sum")
 		}
+		return nil
 	}
 	return fs
 }
@@ -324,7 +404,8 @@ func (fds *FlowDataStore) GetFlowSums(filter FilterAttributes) []*FlowSum {
 	fs := []*FlowSum{}
 	err := fds.db.AllByIndex("Key", &fs)
 	if err != nil && !errors.Is(err, storm.ErrNotFound) {
-		logrus.WithError(err).Panic("error getting all flow sums")
+		logrus.WithError(err).Error("error getting all flow sums")
+		return []*FlowSum{}
 	}
 	if filter != (FilterAttributes{}) {
 		fs = util.FilterSlice(fs, func(f *FlowSum) bool {
@@ -338,11 +419,10 @@ func (fds *FlowDataStore) GetFlowDetail(id int) *FlowData {
 	fd := &FlowData{}
 	err := fds.db.One("ID", id, fd)
 	if err != nil {
-		if errors.Is(err, storm.ErrNotFound) {
-			return nil
-		} else {
-			logrus.WithError(err).Panic("error getting flow data")
+		if !errors.Is(err, storm.ErrNotFound) {
+			logrus.WithError(err).Error("error getting flow data")
 		}
+		return nil
 	}
 	return fd
 }
@@ -351,7 +431,8 @@ func (fds *FlowDataStore) GetFlowsBySumID(sumID int, filter FilterAttributes) []
 	fd := []*FlowData{}
 	err := fds.db.Find("SumID", sumID, &fd)
 	if err != nil && !errors.Is(err, storm.ErrNotFound) {
-		logrus.WithError(err).Panic("error getting all flow sums")
+		logrus.WithError(err).Error("error getting flows by sum id")
+		return []*FlowData{}
 	}
 	if filter != (FilterAttributes{}) {
 		fd = util.FilterSlice(fd, func(f *FlowData) bool {
