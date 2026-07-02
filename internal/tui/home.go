@@ -81,11 +81,9 @@ func (m homeModel) Update(msg tea.Msg) (homeModel, bool, tea.Cmd) {
 	return m, false, nil
 }
 
-func (m homeModel) viewLoading() string {
-	title := styleTitle.Render("Clyde — Checking cluster")
-	body := styleStatusVal.Render("Context: " + m.selected)
-	spinner := styleHelp.Render("Verifying Goldmane availability…")
-	content := lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", spinner)
+// centerBox draws content inside the standard bordered box, centered in the
+// available terminal space (falling back to a sane default size).
+func (m homeModel) centerBox(content string) string {
 	boxed := styleBorder.Padding(1, 2).Render(content)
 	w, h := m.width, m.height
 	if w <= 0 {
@@ -95,6 +93,39 @@ func (m homeModel) viewLoading() string {
 		h = 24
 	}
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, boxed)
+}
+
+func (m homeModel) viewLoading() string {
+	title := styleTitle.Render("Clyde — Checking cluster")
+	body := styleStatusVal.Render("Context: " + m.selected)
+	spinner := styleHelp.Render("Verifying Goldmane availability…")
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", spinner)
+	return m.centerBox(content)
+}
+
+// viewInstallPrompt asks the user whether to enable Goldmane/Whisker on a
+// cluster that doesn't currently have it.
+func (m homeModel) viewInstallPrompt() string {
+	title := styleTitle.Render("Clyde — Goldmane / Whisker not enabled")
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		styleStatusKey.Render("Context: ")+styleStatusVal.Render(m.selected),
+		"",
+		styleStatusVal.Render("Goldmane / Whisker is not enabled on this cluster."),
+		styleStatusVal.Render("Clyde can enable it by creating the Goldmane and Whisker"),
+		styleStatusVal.Render("resources via the installed Calico operator (requires Calico v3.30+)."),
+	)
+	footer := styleHelp.Render("y to install  ·  n/esc to cancel  ·  q to quit")
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", footer)
+	return m.centerBox(content)
+}
+
+// viewInstalling shows progress while Goldmane/Whisker is being enabled.
+func (m homeModel) viewInstalling() string {
+	title := styleTitle.Render("Clyde — Enabling Goldmane / Whisker")
+	body := styleStatusVal.Render("Context: " + m.selected)
+	spinner := styleHelp.Render("Creating resources and waiting for Whisker to become available…")
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", spinner)
+	return m.centerBox(content)
 }
 
 func (m homeModel) View() string {
@@ -143,14 +174,5 @@ func (m homeModel) View() string {
 	parts = append(parts, headerLines...)
 	parts = append(parts, "", body, "", footer)
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
-	boxed := styleBorder.Padding(1, 2).Render(content)
-
-	w, h := m.width, m.height
-	if w <= 0 {
-		w = 80
-	}
-	if h <= 0 {
-		h = 24
-	}
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, boxed)
+	return m.centerBox(content)
 }

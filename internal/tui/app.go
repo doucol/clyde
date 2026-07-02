@@ -43,6 +43,17 @@ const (
 	overlayFilter
 )
 
+// clusterPhase tracks the readiness/installation state of the selected cluster
+// while the home page is shown.
+type clusterPhase int
+
+const (
+	phaseReady         clusterPhase = iota // normal operation (context picker or flows)
+	phaseChecking                          // cluster readiness check in flight
+	phaseInstallPrompt                     // Whisker missing; asking whether to install
+	phaseInstalling                        // Goldmane/Whisker install in flight
+)
+
 type FlowApp struct {
 	mu      *sync.Mutex
 	fds     *flowdata.FlowDataStore
@@ -75,9 +86,9 @@ type appModel struct {
 	sumDetail  sumDetailModel
 	flowDetail flowDetailModel
 
-	help    helpModel
-	filter  filterModel
-	loading bool // goldmane check in flight
+	help   helpModel
+	filter filterModel
+	phase  clusterPhase // cluster readiness / Whisker install state
 
 	ctx context.Context
 	cc  *cmdctx.CmdCtx
@@ -152,9 +163,23 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onContextSelected(msg.name, nil)
 
 	case clusterReadyMsg:
-		m.loading = false
+		m.phase = phaseReady
 		if !msg.info.WhiskerAvailable {
+			// If the operator is present we can offer to enable it; otherwise
+			// there's nothing we can do but explain the requirement.
+			if kube.CanInstallWhisker(msg.info) {
+				m.phase = phaseInstallPrompt
+				return m, nil
+			}
 			m.fa.setExitErr(ErrGoldmaneNotAvailable)
+			return m, tea.Quit
+		}
+		return m.gotoPage(pageSummaryTotalsName)
+
+	case installDoneMsg:
+		m.phase = phaseReady
+		if msg.err != nil {
+			m.fa.setExitErr(msg.err)
 			return m, tea.Quit
 		}
 		return m.gotoPage(pageSummaryTotalsName)
@@ -217,6 +242,17 @@ func (m appModel) updateOverlay(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) updatePage(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// While a cluster check or install is running, only quit is honored.
+	switch m.phase {
+	case phaseChecking, phaseInstalling:
+		if key.Matches(msg, keys.Quit) {
+			return m, m.quitCmd()
+		}
+		return m, nil
+	case phaseInstallPrompt:
+		return m.updateInstallPrompt(msg)
+	}
+
 	switch {
 	case key.Matches(msg, keys.Quit):
 		return m, m.quitCmd()
@@ -249,9 +285,6 @@ func (m appModel) updatePage(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch m.page {
 	case pageHomeName:
-		if m.loading {
-			return m, nil
-		}
 		newHome, selected, cmd := m.home.Update(msg)
 		m.home = newHome
 		if selected {
@@ -297,6 +330,20 @@ func (m appModel) updatePage(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateInstallPrompt handles keypresses while offering to enable
+// Goldmane/Whisker on a cluster that doesn't have it yet.
+func (m appModel) updateInstallPrompt(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.Yes):
+		m.phase = phaseInstalling
+		return m, installWhiskerCmd(m.ctx)
+	case key.Matches(msg, keys.No), key.Matches(msg, keys.Back), key.Matches(msg, keys.Quit):
+		m.fa.setExitErr(ErrGoldmaneNotAvailable)
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
 // onContextSelected is called when the user picks a context in the home page.
 func (m appModel) onContextSelected(name string, extra tea.Cmd) (tea.Model, tea.Cmd) {
 	if name == "" {
@@ -304,7 +351,7 @@ func (m appModel) onContextSelected(name string, extra tea.Cmd) (tea.Model, tea.
 	}
 	m.cc.SetContext(name)
 	m.home.selected = name
-	m.loading = true
+	m.phase = phaseChecking
 	return m, tea.Batch(extra, checkClusterReadyCmd(m.ctx))
 }
 
@@ -395,9 +442,14 @@ func (m appModel) View() tea.View {
 	var body string
 	switch m.page {
 	case pageHomeName:
-		if m.loading {
+		switch m.phase {
+		case phaseChecking:
 			body = m.home.viewLoading()
-		} else {
+		case phaseInstallPrompt:
+			body = m.home.viewInstallPrompt()
+		case phaseInstalling:
+			body = m.home.viewInstalling()
+		default:
 			body = m.home.View()
 		}
 	case pageSummaryTotalsName:

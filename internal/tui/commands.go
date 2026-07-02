@@ -28,6 +28,16 @@ type clusterReadyMsg struct {
 	info kube.ClusterNetworkingInfo
 }
 
+// installDoneMsg reports the outcome of an attempt to enable Goldmane/Whisker.
+// A nil err means Whisker is now available.
+type installDoneMsg struct {
+	err error
+}
+
+// whiskerInstallTimeout bounds how long we wait for the operator to reconcile
+// the new Goldmane/Whisker resources and bring the whisker-backend pod up.
+const whiskerInstallTimeout = 3 * time.Minute
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -65,5 +75,21 @@ func checkClusterReadyCmd(ctx context.Context) tea.Cmd {
 		cc := cmdctx.CmdCtxFromContext(ctx)
 		info := kube.GetClusterNetworkingInfo(ctx, cc.Clientset(), cc.ClientDyn(), cc.GetK8sConfig())
 		return clusterReadyMsg{info: info}
+	}
+}
+
+// installWhiskerCmd creates the Goldmane/Whisker operator resources on the
+// selected cluster and waits for Whisker to come up, returning an
+// installDoneMsg with the outcome.
+func installWhiskerCmd(ctx context.Context) tea.Cmd {
+	return func() tea.Msg {
+		cc := cmdctx.CmdCtxFromContext(ctx)
+		if err := kube.InstallGoldmaneWhisker(ctx, cc.ClientDyn()); err != nil {
+			return installDoneMsg{err: err}
+		}
+		if err := kube.WaitForWhiskerAvailable(ctx, cc.Clientset(), "", whiskerInstallTimeout); err != nil {
+			return installDoneMsg{err: err}
+		}
+		return installDoneMsg{}
 	}
 }

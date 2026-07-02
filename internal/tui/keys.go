@@ -18,6 +18,8 @@ type keyMap struct {
 	Up          key.Binding
 	Down        key.Binding
 	Enter       key.Binding
+	Yes         key.Binding
+	No          key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -73,6 +75,8 @@ func newKeyMap() keyMap {
 		Up:    key.NewBinding(key.WithKeys("up", "k")),
 		Down:  key.NewBinding(key.WithKeys("down", "j")),
 		Enter: key.NewBinding(key.WithKeys("enter")),
+		Yes:   key.NewBinding(key.WithKeys("y", "Y")),
+		No:    key.NewBinding(key.WithKeys("n", "N")),
 	}
 }
 
