@@ -35,15 +35,15 @@ func TestChanSendEmpty(t *testing.T) {
 
 			// Check if the correct number of values were sent
 			received := 0
-			for range tt.count {
-				select {
-				case <-ch:
-					received++
-				case <-time.After(100 * time.Millisecond):
-					t.Errorf("Timeout waiting for value")
-					return
-				}
-			}
+                        for i := 0; i < tt.count; i++ {
+                                select {
+                                case <-ch:
+                                        received++
+                                case <-time.After(100 * time.Millisecond):
+                                        t.Errorf("Timeout waiting for value")
+                                        return
+                                }
+                        }
 
 			if received != tt.expected {
 				t.Errorf("ChanSendEmpty() sent %v values; want %v", received, tt.expected)
